@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.21 2003/10/10 22:33:23 jacob Exp $
+# $Id: AuthCookieDBI.pm,v 1.22 2003/10/10 23:43:16 jacob Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -36,7 +36,7 @@ package Apache::AuthCookieDBI;
 use strict;
 use 5.004;
 use vars qw( $VERSION );
-( $VERSION ) = '$Revision: 1.21 $' =~ /([\d.]+)/;
+( $VERSION ) = '$Revision: 1.22 $' =~ /([\d.]+)/;
 
 use Apache::AuthCookie;
 use vars qw( @ISA );
@@ -60,8 +60,8 @@ sub _dbi_config_vars($);
 sub _now_year_month_day_hour_minute_second();
 sub _percent_encode($);
 sub _percent_decode($);
-sub extra_session_info($$\@);
 
+sub extra_session_info($$\@);
 sub authen_cred($$\@);
 sub authen_ses_key($$$);
 sub group($$\@);
@@ -109,11 +109,12 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-	$Revision: 1.21 $
+	$Revision: 1.22 $
 
 =head1 SYNOPSIS
 
 	# In httpd.conf or .htaccess
+        
 	# This PerlSetVar MUST precede the PerlModule line because the
 	# key is read in a BEGIN block when the module is loaded.
 	PerlSetVar WhatEverDBI_SecretKeyFile /etc/httpd/acme.com.key
@@ -127,6 +128,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 	
 	# These must be set
 	PerlSetVar WhatEverDBI_DSN "DBI:mysql:database=test"
+        PerlSetVar WhatEverDBI_SecretKey "489e5eaad8b3208f9ad8792ef4afca73598ae666b0206a9c92ac877e73ce835c"
 
 	# These are optional, the module sets sensible defaults.
 	PerlSetVar WhatEverDBI_User "nobody"
@@ -273,6 +275,21 @@ user information.  This is required and has no default value.
 		return undef;
 	}
 
+=item C<WhateverDBI_SecretKey>
+
+Specifies the secret key for this auth scheme.  This should be a long
+random string.  This should be secret; either make the httpd.conf file
+only readable by root, or put the PerlSetVar in a file only readable by
+root and include it.
+
+This is required and has no default value
+=cut
+
+        unless ( $c{ DBI_SecretKey } = _dir_config_var $r, 'DBI_SecretKey' or _dir_config_var $r, 'DBI_SecretKeyFile' ) {
+                _log_not_set $r, 'DBI_SecretKey or DBI_SecretKeyFile';
+                return undef;
+        }
+
 =item C<WhatEverDBI_User>
 
 The user to log into the database as.  This is not required and
@@ -363,7 +380,7 @@ and defaults to 'user'.
 	$c{ DBI_groupuserfield } = _dir_config_var( $r, 'DBI_GroupUserField' )
 	            || 'user';
 
-=item C<WhatEverDBI_SecretKeyFile>
+=item C<WhatEverDBI_SecretKeyFile - DEPRECATED>
 
 The file that contains the secret key (on the first line of the file).  This
 is required and has no default value.  This key should be owned and only
@@ -376,12 +393,12 @@ because the secret key file is read immediately (at server start time).  This
 is so you can have it owned and only readable by root even though Apache
 then changes to another user.
 
+I suggest using DBI_SecretKey instead.
+
 =cut
 
-	unless (
-	   $c{ DBI_secretkeyfile } = _dir_config_var $r, 'DBI_SecretKeyFile'
-	) {
-		_log_not_set $r, 'DBI_SecretKeyFile';
+	unless ( $c{ DBI_secretkeyfile } = _dir_config_var $r, 'DBI_SecretKeyFile' or _dir_config_var $r, 'DBI_SecretKey' ) {
+		_log_not_set $r, 'DBI_SecretKeyFile or DBI_SecretKey';
 		return undef;
 	}
 
@@ -521,9 +538,9 @@ sub authen_cred($$\@)
 	my $sth = $dbh->prepare( <<"EOS" );
 SELECT $c{ DBI_passwordfield }
 FROM $c{ DBI_userstable }
-WHERE $c{ DBI_userfield } = @{[ $dbh->quote( $user ) ]}
+WHERE $c{ DBI_userfield } = ?
 EOS
-	$sth->execute;
+	$sth->execute( $user );
 	my( $crypted_password ) = $sth->fetchrow_array;
 	unless ( defined $crypted_password ) {
 		$r->log_reason( "Apache::AuthCookieDBI: couldn't select password from $c{ DBI_DSN }, $c{ DBI_userstable }, $c{ DBI_userfield } for user $user for auth realm $auth_name", $r->uri );
