@@ -5,3 +5,5 @@ It is a ticket-issuing system that looks up username/passwords in a DBI
 database using generic SQL and issues MD5-checksummed tickets valid for
 a configurable time period.  Incoming requests with tickets are
 checksummed and expire-time checked.
+
+Version 2.0 and later require mod_perl 1.99 or later.
