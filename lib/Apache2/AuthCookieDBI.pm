@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.24 2003/10/20 23:15:52 jacob Exp $
+# $Id: AuthCookieDBI.pm,v 1.25 2003/10/21 00:11:58 jacob Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -74,31 +74,6 @@ use vars qw( %CIPHERS );
 # Stores Cipher::CBC objects in $CIPHERS{ idea:AuthName },
 # $CIPHERS{ des:AuthName } etc.
 
-use vars qw( %SECRET_KEYS );
-# Stores secret keys for MD5 checksums and encryption for each auth realm in
-# $SECRET_KEYS{ AuthName }.
-
-#===============================================================================
-# S E R V E R   S T A R T   I N I T I A L I Z A T I O N
-#===============================================================================
-
-BEGIN {
-    my @keyfile_vars = grep {
-        $_ =~ /DBI_SecretKeyFile$/
-    } keys %{ Apache->server->dir_config() };
-    foreach my $keyfile_var ( @keyfile_vars ) {
-        my $keyfile = Apache->server->dir_config( $keyfile_var );
-        my $auth_name = $keyfile_var;
-        $auth_name =~ s/DBI_SecretKeyFile$//;
-        unless ( open( KEY, "<$keyfile" ) ) {
-            Apache::log_error( "Could not open keyfile for $auth_name in file $keyfile" );
-        } else {
-            $SECRET_KEYS{ $auth_name } = <KEY>;
-            close KEY;
-        }
-    }
-}
-
 #===============================================================================
 # P E R L D O C
 #===============================================================================
@@ -109,16 +84,12 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.24 $
+    $Revision: 1.25 $
 
 =head1 SYNOPSIS
 
     # In httpd.conf or .htaccess
         
-    # This PerlSetVar MUST precede the PerlModule line because the
-    # key is read in a BEGIN block when the module is loaded.
-    PerlSetVar WhatEverDBI_SecretKeyFile /etc/httpd/acme.com.key
-
     PerlModule Apache::AuthCookieDBI
     PerlSetVar WhatEverPath /
     PerlSetVar WhatEverLoginScript /login.pl
@@ -128,7 +99,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
     
     # These must be set
     PerlSetVar WhatEverDBI_DSN "DBI:mysql:database=test"
-        PerlSetVar WhatEverDBI_SecretKey "489e5eaad8b3208f9ad8792ef4afca73598ae666b0206a9c92ac877e73ce835c"
+    PerlSetVar WhatEverDBI_SecretKey "489e5eaad8b3208f9ad8792ef4afca73598ae666b0206a9c92ac877e73ce835c"
 
     # These are optional, the module sets sensible defaults.
     PerlSetVar WhatEverDBI_User "nobody"
@@ -286,7 +257,7 @@ This is required and has no default value.
 
 =cut                
 
-    unless ( $c{ DBI_SecretKey } = _dir_config_var $r, 'DBI_SecretKey' ) {
+    unless ( $c{ DBI_secretkey } = _dir_config_var $r, 'DBI_SecretKey' ) {
         _log_not_set $r, 'DBI_SecretKey';
         return undef;
     }
@@ -574,13 +545,13 @@ EOS
 
     # Now we calculate the hash of this and the secret key and then
     # calculate the hash of *that* and the secret key again.
-    my $secret_key = $SECRET_KEYS{ $auth_name };
-    unless ( defined $secret_key ) {
+    my $secretkey = $c{DBI_secretkey};
+    unless ( defined $secretkey ) {
         $r->log_error( "Apache::AuthCookieDBI: didn't have the secret key for auth realm $auth_name", $r->uri );
         return undef;
     }
-    my $hash = md5_hex( join ':', $secret_key, md5_hex(
-        join ':', $public_part, $secret_key
+    my $hash = md5_hex( join ':', $secretkey, md5_hex(
+        join ':', $public_part, $secretkey
     ) );
 
     # Now we add this hash to the end of the public part.
@@ -592,19 +563,19 @@ EOS
         $encrypted_session_key = $session_key;
     } elsif ( lc $c{ DBI_encryptiontype } eq 'des'      ) {
         $CIPHERS{ "des:$auth_name"      }
-           ||= Crypt::CBC->new( $secret_key, 'DES'      );
+           ||= Crypt::CBC->new( $secretkey, 'DES'      );
         $encrypted_session_key = $CIPHERS{
             "des:$auth_name"
         }->encrypt_hex( $session_key );
     } elsif ( lc $c{ DBI_encryptiontype } eq 'idea'     ) {
         $CIPHERS{ "idea:$auth_name"      }
-           ||= Crypt::CBC->new( $secret_key, 'IDEA'     );
+           ||= Crypt::CBC->new( $secretkey, 'IDEA'     );
         $encrypted_session_key = $CIPHERS{
             "idea:$auth_name"
         }->encrypt_hex( $session_key );
     } elsif ( lc $c{ DBI_encryptiontype } eq 'blowfish' ) {
         $CIPHERS{ "blowfish:$auth_name" }
-           ||= Crypt::CBC->new( $secret_key, 'Blowfish' );
+           ||= Crypt::CBC->new( $secretkey, 'Blowfish' );
         $encrypted_session_key = $CIPHERS{
             "blowfish:$auth_name"
         }->encrypt_hex( $session_key );
@@ -626,8 +597,8 @@ sub authen_ses_key($$$)
     my %c = _dbi_config_vars $r;
 
     # Get the secret key.
-    my $secret_key = $SECRET_KEYS{ $auth_name };
-    unless ( defined $secret_key ) {
+    my $secretkey = $c{ DBI_secretkey };
+    unless ( defined $secretkey ) {
         $r->log_error( "Apache::AuthCookieDBI: didn't have the secret key from for auth realm $auth_name", $r->uri );
         return undef;
     }
@@ -648,16 +619,16 @@ sub authen_ses_key($$$)
         my $cipher;
         if ( lc $c{ DBI_encryptiontype } eq 'des' ) {
             $cipher = $CIPHERS{ "des:$auth_name" }
-               ||= Crypt::CBC->new( $secret_key, 'DES' );
+               ||= Crypt::CBC->new( $secretkey, 'DES' );
         } elsif ( lc $c{ DBI_encryptiontype } eq 'idea' ) {
             $cipher = $CIPHERS{ "idea:$auth_name" }
-               ||= Crypt::CBC->new( $secret_key, 'IDEA' );
+               ||= Crypt::CBC->new( $secretkey, 'IDEA' );
         } elsif ( lc $c{ DBI_encryptiontype } eq 'blowfish' ) {
             $cipher = $CIPHERS{ "blowfish:$auth_name" }
-               ||= Crypt::CBC->new( $secret_key, 'Blowfish' );
+               ||= Crypt::CBC->new( $secretkey, 'Blowfish' );
         } elsif ( lc $c{ DBI_encryptiontype } eq 'blowfish_pp' ) {
             $cipher = $CIPHERS{ "blowfish_pp:$auth_name" }
-               ||= Crypt::CBC->new( $secret_key, 'Blowfish_PP' );
+               ||= Crypt::CBC->new( $secretkey, 'Blowfish_PP' );
         } else {
             $r->log_error( "Apache::AuthCookieDBI: unknown encryption type $c{ DBI_encryptiontype } for auth realm $auth_name", $r->uri );
             return undef;
@@ -691,8 +662,8 @@ sub authen_ses_key($$$)
 
     # Calculate the hash of the user, issue time, expire_time and
     # the secret key and then the hash of that and the secret key again.
-    my $hash = md5_hex( join ':', $secret_key, md5_hex(
-        join ':', $enc_user, $issue_time, $expire_time, @rest, $secret_key
+    my $hash = md5_hex( join ':', $secretkey, md5_hex(
+        join ':', $enc_user, $issue_time, $expire_time, @rest, $secretkey
     ) );
 
     # Compare it to the hash they gave us.
