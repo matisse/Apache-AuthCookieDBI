@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.31 2003/10/24 00:28:31 jacob Exp $
+# $Id: AuthCookieDBI.pm,v 1.32 2003/10/24 00:29:46 jacob Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -85,7 +85,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.31 $
+    $Revision: 1.32 $
 
 =head1 SYNOPSIS
 
@@ -402,6 +402,9 @@ If you use this, you should put:
 
 (or whatever the name of your session module is) in your httpd.conf file,
 so it is loaded.
+
+If you are using this directive, you can timeout a session on the server side
+by deleting the user's session.  Authentication will then fail for them.
 
 This is not required and defaults to none, meaning no session objects will
 be created.
