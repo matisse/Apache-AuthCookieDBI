@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.29 2003/10/24 00:02:13 jacob Exp $
+# $Id: AuthCookieDBI.pm,v 1.30 2003/10/24 00:16:01 jacob Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -85,7 +85,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.29 $
+    $Revision: 1.30 $
 
 =head1 SYNOPSIS
 
@@ -396,6 +396,13 @@ For example, a value could be "Apache::Session::MySQL".  The DSN will
 be the same as used for authentication.  The session created will be
 stored in $r->pnotes( WhatEver ).
 
+If you use this, you should put:
+
+    PerlModule Apache::Session::MySQL
+
+(or whatever the name of your session module is) in your httpd.conf file,
+so it is loaded.
+
 This is not required and defaults to none, meaning no session objects will
 be created.
 
@@ -555,7 +562,6 @@ EOS
     # If we are using sessions, we create a new session for this login.
     my $session_id = '';
     if ( defined $c{ DBI_sessionmodule } ) {
-        eval "require $c{ DBI_sessionmodule }";
         my %session;
         tie %session, $c{ DBI_sessionmodule }, undef, +{
           Handle => $dbh,
@@ -691,7 +697,6 @@ sub authen_ses_key($$$)
 
     # If we're using a session module, check that their session exist.
     if ( defined $c{ DBI_sessionmodule } ) {
-        eval "require $c{ DBI_sessionmodule }";
         my %session;
         my $dbh = DBI->connect( $c{ DBI_DSN },
                                 $c{ DBI_user }, $c{ DBI_password } );
