@@ -1,3 +1,4 @@
+
 #===============================================================================
 #
 # Apache::AuthCookieDBI
@@ -29,7 +30,7 @@ package Apache::AuthCookieDBI;
 use strict;
 use 5.004;
 use vars qw( $VERSION );
-( $VERSION ) = '$Revision: 1.5 $' =~ /([\d.]+)/;
+( $VERSION ) = '$Revision: 1.6 $' =~ /([\d.]+)/;
 
 use Apache::AuthCookie;
 use vars qw( @ISA );
@@ -101,7 +102,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-	$Revision: 1.5 $
+	$Revision: 1.6 $
 
 =head1 SYNOPSIS
 
