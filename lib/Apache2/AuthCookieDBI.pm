@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.32 2003/10/24 00:29:46 jacob Exp $
+# $Id: AuthCookieDBI.pm,v 1.33 2003/11/03 07:50:39 jacob Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -85,7 +85,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.32 $
+    $Revision: 1.33 $
 
 =head1 SYNOPSIS
 
@@ -488,17 +488,20 @@ sub authen_cred($$\@)
     my $auth_name = $r->auth_name;
 
     # Username goes in credential_0
-    my $user = $credentials[ 0 ];
+    my $user = shift @credentials;
     unless ( $user =~ /^.+$/ ) {
         $r->log_error( "Apache::AuthCookieDBI: no username supplied for auth realm $auth_name", $r->uri );
         return undef;
     }
     # Password goes in credential_1
-    my $password = $credentials[ 1 ];
+    my $password = shift @credentials;
     unless ( $password =~ /^.+$/ ) {
         $r->log_error( "Apache::AuthCookieDBI: no password supplied for auth realm $auth_name", $r->uri );
         return undef;
     }
+
+    # Extra data can be put in credential_2, _3, etc.
+    my @extra_data = @credentials;
 
     # get the configuration information.
     my %c = _dbi_config_vars $r;
@@ -573,6 +576,7 @@ EOS
         $session_id = $session{ _session_id };
         $r->pnotes( $auth_name, \%session );
         $session{ user } = $user;
+        $session{ extra_data } = \@extra_data;
     }
 
     # OK, now we stick the username and the current time and the expire
