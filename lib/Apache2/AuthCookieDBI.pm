@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.27 2003/10/23 23:50:57 jacob Exp $
+# $Id: AuthCookieDBI.pm,v 1.28 2003/10/24 00:01:17 jacob Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -49,6 +49,7 @@ use Apache::ServerUtil;
 use Digest::MD5 qw( md5_hex );
 use Date::Calc qw( Today_and_Now Add_Delta_DHMS );
 # Also uses Crypt::CBC if you're using encrypted cookies.
+# Also uses Apache::Session if you're using sessions.
 
 #===============================================================================
 # F U N C T I O N   D E C L A R A T I O N S
@@ -84,7 +85,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.27 $
+    $Revision: 1.28 $
 
 =head1 SYNOPSIS
 
@@ -554,8 +555,12 @@ EOS
     # If we are using sessions, we create a new session for this login.
     my $session_id = '';
     if ( defined $c{ DBI_sessionmodule } ) {
+        eval "require $c{ DBI_sessionmodule }";
         my %session;
-        tie %session, $c{ DBI_sessionmodule }, undef, +{ Handle => $dbh };
+        tie %session, $c{ DBI_sessionmodule }, undef, +{
+          Handle => $dbh,
+          LockHandle => $dbh,
+        };
         $session_id = $session{ _session_id };
         $r->pnotes( $auth_name ) = \%session;
     }
@@ -686,6 +691,7 @@ sub authen_ses_key($$$)
 
     # If we're using a session module, check that their session exist.
     if ( defined $c{ DBI_sessionmodule } ) {
+        eval "require $c{ DBI_sessionmodule }";
         my %session;
         my $dbh = DBI->connect( $c{ DBI_DSN },
                                 $c{ DBI_user }, $c{ DBI_password } );
@@ -695,7 +701,8 @@ sub authen_ses_key($$$)
         }
         eval {
             tie %session, $c{ DBI_sessionmodule }, $session_id, +{
-              Handle => $dbh
+              Handle => $dbh,
+              LockHandle => $dbh,
             };
         };
         if ( $@ ) {
