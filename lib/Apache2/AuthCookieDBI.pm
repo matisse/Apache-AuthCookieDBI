@@ -29,7 +29,7 @@ package Apache::AuthCookieDBI;
 use strict;
 use 5.004;
 use vars qw( $VERSION );
-( $VERSION ) = '$Revision: 1.19 $' =~ /([\d.]+)/;
+( $VERSION ) = '$Revision: 1.20 $' =~ /([\d.]+)/;
 
 use Apache::AuthCookie;
 use vars qw( @ISA );
@@ -101,7 +101,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-	$Revision: 1.19 $
+	$Revision: 1.20 $
 
 =head1 SYNOPSIS
 
@@ -146,7 +146,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 		require group system
 	</Directory>
 
-	# Login location.  *** DEBUG *** I still think this is screwy
+	# Login location.
 	<Files LOGIN>
 		AuthType Apache::AuthCookieDBI
 		AuthName WhatEver
@@ -466,13 +466,13 @@ sub authen_cred($$\@)
 	my $user = $credentials[ 0 ];
 	unless ( $user =~ /^.+$/ ) {
 		$r->log_reason( "Apache::AuthCookieDBI: no username supplied for auth realm $auth_name", $r->uri );
-		return 'bad';
+		return undef;
 	}
 	# Password goes in credential_1
 	my $password = $credentials[ 1 ];
 	unless ( $password =~ /^.+$/ ) {
 		$r->log_reason( "Apache::AuthCookieDBI: no password supplied for auth realm $auth_name", $r->uri );
-		return 'bad';
+		return undef;
 	}
 
 	# get the configuration information.
@@ -483,7 +483,7 @@ sub authen_cred($$\@)
 	                        $c{ DBI_user }, $c{ DBI_password } );
 	unless ( defined $dbh ) {
 		$r->log_reason( "Apache::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
-		return 'bad';
+		return undef;
 	}
 	my $sth = $dbh->prepare( <<"EOS" );
 SELECT $c{ DBI_passwordfield }
@@ -494,26 +494,25 @@ EOS
 	my( $crypted_password ) = $sth->fetchrow_array;
 	unless ( defined $crypted_password ) {
 		$r->log_reason( "Apache::AuthCookieDBI: couldn't select password from $c{ DBI_DSN }, $c{ DBI_userstable }, $c{ DBI_userfield } for user $user for auth realm $auth_name", $r->uri );
-		return 'bad';
+		return undef;
 	}
 
 	# now return unless the passwords match.
 	if ( lc $c{ DBI_crypttype } eq 'none' ) {
 		unless ( $password eq $crypted_password ) {
 			$r->log_reason( "Apache::AuthCookieDBI: plaintext passwords didn't match for user $user for auth realm $auth_name", $r->uri );
-			return 'bad';
+			return undef;
 		}
 	} elsif ( lc $c{ DBI_crypttype } eq 'crypt' ) {
 		my $salt = substr $crypted_password, 0, 2;
 		unless ( crypt( $password, $salt ) eq $crypted_password ) {
 			$r->log_reason( "Apache::AuthCookieDBI: crypted passwords didn't match for user $user for auth realm $auth_name", $r->uri );
-			return 'bad';
+			return undef;
 		}
 	} elsif ( lc $c{ DBI_crypttype } eq 'md5' ) {
-		# NOTE:  This may not be good enough. *** DEBUG ***
 		unless ( md5_hex( $password ) eq $crypted_password ) {
 			$r->log_reason( "Apache::AuthCookieDBI: MD5 passwords didn't match for user $user for auth realm $auth_name", $r->uri );
-			return 'bad';
+			return undef;
 		}
 	}
 
@@ -535,7 +534,7 @@ EOS
 	}
 
 	# Now we need to %-encode non-alphanumberics in the username so we
-	# can stick it in the cookie safely.  *** DEBUG *** check this
+	# can stick it in the cookie safely.
 	my $enc_user = _percent_encode $user;
 
 	# OK, now we stick the username and the current time and the expire
@@ -548,7 +547,7 @@ EOS
 	my $secret_key = $SECRET_KEYS{ $auth_name };
 	unless ( defined $secret_key ) {
 		$r->log_reason( "Apache::AuthCookieDBI: didn't have the secret key for auth realm $auth_name", $r->uri );
-		return 'bad';
+		return undef;
 	}
 	my $hash = md5_hex( join ':', $secret_key, md5_hex(
 		join ':', $public_part, $secret_key
@@ -680,7 +679,7 @@ sub authen_ses_key($$$)
 	# If we're being paranoid about timing-out long-lived sessions,
 	# check that the issue time + the current (server-set) session lifetime
 	# hasn't passed too (in case we issued long-lived session tickets
-	# in the past that we want to get rid of). *** DEBUG ***
+	# in the past that we want to get rid of). *** TODO ***
 	# if ( lc $c{ DBI_AlwaysUseCurrentSessionLifetime } eq 'on' ) {
 
 	# They must be okay, so return the user.
