@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.23 2003/10/20 23:14:54 jacob Exp $
+# $Id: AuthCookieDBI.pm,v 1.24 2003/10/20 23:15:52 jacob Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -109,7 +109,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.23 $
+    $Revision: 1.24 $
 
 =head1 SYNOPSIS
 
@@ -736,7 +736,7 @@ sub group($$\@)
     my $dbh = DBI->connect( $c{ DBI_DSN },
                             $c{ DBI_user }, $c{ DBI_password } );
     unless ( defined $dbh ) {
-        $r->log_error "Apache::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
+        $r->log_error( "Apache::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
         return undef;
     }
 
