@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.33 2003/11/03 07:50:39 jacob Exp $
+# $Id: AuthCookieDBI.pm,v 1.34 2005/01/08 00:37:38 matisse Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -85,7 +85,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.33 $
+    $Revision: 1.34 $
 
 =head1 SYNOPSIS
 
@@ -762,7 +762,8 @@ sub authen_ses_key($$$)
 
 sub group($$\@)
 {
-    my( $self, $r, @groups ) = @_;
+    my( $self, $r, $groups ) = @_;
+    my @groups = split(/\s+/o, $groups);
 
     my $auth_name = $r->auth_name;
 
