@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.26 2003/10/23 23:37:41 jacob Exp $
+# $Id: AuthCookieDBI.pm,v 1.27 2003/10/23 23:50:57 jacob Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -84,7 +84,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.26 $
+    $Revision: 1.27 $
 
 =head1 SYNOPSIS
 
@@ -392,7 +392,8 @@ This is not required and defaults to '00-24-00-00' or 24 hours.
 
 Which Apache::Session module to use for persistent sessions.
 For example, a value could be "Apache::Session::MySQL".  The DSN will
-be the same as used for authentication.
+be the same as used for authentication.  The session created will be
+stored in $r->pnotes( WhatEver ).
 
 This is not required and defaults to none, meaning no session objects will
 be created.
@@ -660,9 +661,9 @@ sub authen_ses_key($$$)
     }
     
     # Break up the session key.
-    my( $enc_user, $issue_time, $expire_time, $session_id, @rest )
-       = split /:/, $session_key;
-    my $supplied_hash = pop @rest;
+    my( $enc_user, $issue_time, $expire_time, $session_id,
+      $supplied_hash, @rest ) = split /:/, $session_key;
+
     # Let's check that we got passed sensible values in the cookie.
     unless ( $enc_user =~ /^[a-zA-Z0-9_\%]+$/ ) {
         $r->log_error( "Apache::AuthCookieDBI: bad percent-encoded user $enc_user recovered from session ticket for auth_realm $auth_name", $r->uri );
@@ -707,9 +708,10 @@ sub authen_ses_key($$$)
     }
 
     # Calculate the hash of the user, issue time, expire_time and
-    # the secret key and then the hash of that and the secret key again.
-    my $hash = md5_hex( join ':', $secretkey, md5_hex(
-        join ':', $enc_user, $issue_time, $expire_time, @rest, $secretkey
+    # the secret key  and the session_id and then the hash of that
+    # and the secret key again.
+    my $hash = md5_hex( join ':', $secretkey, md5_hex( join ':',
+      $enc_user, $issue_time, $expire_time, $session_id, @rest, $secretkey
     ) );
 
     # Compare it to the hash they gave us.
