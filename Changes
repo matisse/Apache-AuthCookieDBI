@@ -1,5 +1,10 @@
 Revision history for Perl extension Apache::AuthCookieDBI.
 
+2.0.1 - Fixed bug in  group()
+  It was expecting the list of groups to be already split up.
+
+2.0 - mod_perl 2 version
+
 0.01  Mon Apr  3 10:50:32 2000
 	- original version; created by h2xs 1.19
 
