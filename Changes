@@ -1,0 +1,5 @@
+Revision history for Perl extension Apache::AuthCookieDBI.
+
+0.01  Mon Apr  3 10:50:32 2000
+	- original version; created by h2xs 1.19
+
