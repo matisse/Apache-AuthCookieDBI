@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.25 2003/10/21 00:11:58 jacob Exp $
+# $Id: AuthCookieDBI.pm,v 1.26 2003/10/23 23:37:41 jacob Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -84,7 +84,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.25 $
+    $Revision: 1.26 $
 
 =head1 SYNOPSIS
 
@@ -388,6 +388,19 @@ This is not required and defaults to '00-24-00-00' or 24 hours.
     $c{ DBI_sessionlifetime }
        = _dir_config_var( $r, 'DBI_SessionLifetime' ) || '00-24-00-00';
 
+=item C<WhatEverDBI_SessionModule>
+
+Which Apache::Session module to use for persistent sessions.
+For example, a value could be "Apache::Session::MySQL".  The DSN will
+be the same as used for authentication.
+
+This is not required and defaults to none, meaning no session objects will
+be created.
+
+=cut
+
+    $c{ DBI_sessionmodule } = _dir_config_var( $r, 'DBI_SessionModule' );
+
     return %c;
 }
 
@@ -537,10 +550,20 @@ EOS
     # can stick it in the cookie safely.
     my $enc_user = _percent_encode $user;
 
+    # If we are using sessions, we create a new session for this login.
+    my $session_id = '';
+    if ( defined $c{ DBI_sessionmodule } ) {
+        my %session;
+        tie %session, $c{ DBI_sessionmodule }, undef, +{ Handle => $dbh };
+        $session_id = $session{ _session_id };
+        $r->pnotes( $auth_name ) = \%session;
+    }
+
     # OK, now we stick the username and the current time and the expire
-    # time together to make the public part of the session key:
+    # time and the session id (if any) together to make the public part
+    # of the session key:
     my $current_time = _now_year_month_day_hour_minute_second;
-    my $public_part = "$enc_user:$current_time:$expire_time";
+    my $public_part = "$enc_user:$current_time:$expire_time:$session_id";
     $public_part .= $self->extra_session_info($r,@credentials);
 
     # Now we calculate the hash of this and the secret key and then
@@ -637,7 +660,7 @@ sub authen_ses_key($$$)
     }
     
     # Break up the session key.
-    my( $enc_user, $issue_time, $expire_time, @rest )
+    my( $enc_user, $issue_time, $expire_time, $session_id, @rest )
        = split /:/, $session_key;
     my $supplied_hash = pop @rest;
     # Let's check that we got passed sensible values in the cookie.
@@ -658,6 +681,29 @@ sub authen_ses_key($$$)
     unless ( $supplied_hash =~ /^[0-9a-fA-F]{32}$/ ) {
         $r->log_error( "Apache::AuthCookieDBI: bad hash $supplied_hash recovered from ticket for user $user for auth_realm $auth_name", $r->uri );
         return undef;
+    }
+
+    # If we're using a session module, check that their session exist.
+    if ( defined $c{ DBI_sessionmodule } ) {
+        my %session;
+        my $dbh = DBI->connect( $c{ DBI_DSN },
+                                $c{ DBI_user }, $c{ DBI_password } );
+        unless ( defined $dbh ) {
+            $r->log_error( "Apache::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
+            return undef;
+        }
+        eval {
+            tie %session, $c{ DBI_sessionmodule }, $session_id, +{
+              Handle => $dbh
+            };
+        };
+        if ( $@ ) {
+            $r->log_error( "Apache::AuthCookieDBI: failed to tie session hash using session id $session_id for user $user for auth_realm $auth_name, error was $@", $r->uri );
+            return undef;
+        }
+        # Update a timestamp at the top level to make sure we sync.
+        $session{ timestamp } = _now_year_month_day_hour_minute_second;
+        $r->pnotes( $auth_name ) = \%session;
     }
 
     # Calculate the hash of the user, issue time, expire_time and
