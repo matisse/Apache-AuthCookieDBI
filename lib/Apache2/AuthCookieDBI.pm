@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.30 2003/10/24 00:16:01 jacob Exp $
+# $Id: AuthCookieDBI.pm,v 1.31 2003/10/24 00:28:31 jacob Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -85,7 +85,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.30 $
+    $Revision: 1.31 $
 
 =head1 SYNOPSIS
 
@@ -569,6 +569,7 @@ EOS
         };
         $session_id = $session{ _session_id };
         $r->pnotes( $auth_name, \%session );
+        $session{ user } = $user;
     }
 
     # OK, now we stick the username and the current time and the expire
