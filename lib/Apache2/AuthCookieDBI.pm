@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.28 2003/10/24 00:01:17 jacob Exp $
+# $Id: AuthCookieDBI.pm,v 1.29 2003/10/24 00:02:13 jacob Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -85,7 +85,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.28 $
+    $Revision: 1.29 $
 
 =head1 SYNOPSIS
 
@@ -562,7 +562,7 @@ EOS
           LockHandle => $dbh,
         };
         $session_id = $session{ _session_id };
-        $r->pnotes( $auth_name ) = \%session;
+        $r->pnotes( $auth_name, \%session );
     }
 
     # OK, now we stick the username and the current time and the expire
@@ -711,7 +711,7 @@ sub authen_ses_key($$$)
         }
         # Update a timestamp at the top level to make sure we sync.
         $session{ timestamp } = _now_year_month_day_hour_minute_second;
-        $r->pnotes( $auth_name ) = \%session;
+        $r->pnotes( $auth_name, \%session );
     }
 
     # Calculate the hash of the user, issue time, expire_time and
