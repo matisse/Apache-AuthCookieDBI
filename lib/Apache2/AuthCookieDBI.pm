@@ -1,12 +1,19 @@
 #===============================================================================
 #
+# $Id: AuthCookieDBI.pm,v 1.21 2003/10/10 22:33:23 jacob Exp $
+# 
 # Apache::AuthCookieDBI
 #
 # An AuthCookie module backed by a DBI database.
 #
-# Copyright (C) 2002 SF Interactive.
+# Copyright (C) 2000-2003 SF Interactive.
 #
 # Author:  Jacob Davies <jacob@well.com>
+#
+# Incomplete list of additional contributors:
+#     Matisse Enzer
+#     Nick Phillips
+#     William McKee
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -29,7 +36,7 @@ package Apache::AuthCookieDBI;
 use strict;
 use 5.004;
 use vars qw( $VERSION );
-( $VERSION ) = '$Revision: 1.20 $' =~ /([\d.]+)/;
+( $VERSION ) = '$Revision: 1.21 $' =~ /([\d.]+)/;
 
 use Apache::AuthCookie;
 use vars qw( @ISA );
@@ -53,6 +60,7 @@ sub _dbi_config_vars($);
 sub _now_year_month_day_hour_minute_second();
 sub _percent_encode($);
 sub _percent_decode($);
+sub extra_session_info($$\@);
 
 sub authen_cred($$\@);
 sub authen_ses_key($$$);
@@ -101,7 +109,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-	$Revision: 1.20 $
+	$Revision: 1.21 $
 
 =head1 SYNOPSIS
 
@@ -451,6 +459,31 @@ sub _percent_decode($)
 # P U B L I C   F U N C T I O N S
 #===============================================================================
 
+=head1 SUBCLASSING
+
+You can subclass this module to override public functions and change
+their behaviour.
+
+=over 4
+
+=item C<extra_session_info()>
+
+This method returns extra fields to add to the session key.
+It should return a string consisting of ":field1:field2:field3"
+(where each field is preceded by a colon).
+
+The default implementation does nothing.
+
+=back
+
+=cut
+
+sub extra_session_info ($$\@) {
+    my ($self, $r, @credentials) = @_;
+
+    return "";
+}
+
 #-------------------------------------------------------------------------------
 # Take the credentials for a user and check that they match; if so, return
 # a new session key for this user that can be stored in the cookie.
@@ -541,6 +574,7 @@ EOS
 	# time together to make the public part of the session key:
 	my $current_time = _now_year_month_day_hour_minute_second;
 	my $public_part = "$enc_user:$current_time:$expire_time";
+	$public_part .= $self->extra_session_info($r,@credentials);
 
 	# Now we calculate the hash of this and the secret key and then
 	# calculate the hash of *that* and the secret key again.
@@ -598,7 +632,7 @@ sub authen_ses_key($$$)
 	# Get the secret key.
 	my $secret_key = $SECRET_KEYS{ $auth_name };
 	unless ( defined $secret_key ) {
-		$r->log_reason( "Apache::AuthCookieDBI: didn't the secret key from for auth realm $auth_name", $r->uri );
+		$r->log_reason( "Apache::AuthCookieDBI: didn't have the secret key from for auth realm $auth_name", $r->uri );
 		return undef;
 	}
 	
@@ -636,8 +670,9 @@ sub authen_ses_key($$$)
 	}
 	
 	# Break up the session key.
-	my( $enc_user, $issue_time, $expire_time, $supplied_hash )
+	my( $enc_user, $issue_time, $expire_time, @rest )
 	   = split /:/, $session_key;
+	my $supplied_hash = pop @rest;
 	# Let's check that we got passed sensible values in the cookie.
 	unless ( $enc_user =~ /^[a-zA-Z0-9_\%]+$/ ) {
 		$r->log_reason( "Apache::AuthCookieDBI: bad percent-encoded user $enc_user recovered from session ticket for auth_realm $auth_name", $r->uri );
@@ -661,7 +696,7 @@ sub authen_ses_key($$$)
 	# Calculate the hash of the user, issue time, expire_time and
 	# the secret key and then the hash of that and the secret key again.
 	my $hash = md5_hex( join ':', $secret_key, md5_hex(
-		join ':', $enc_user, $issue_time, $expire_time, $secret_key
+		join ':', $enc_user, $issue_time, $expire_time, @rest, $secret_key
 	) );
 
 	# Compare it to the hash they gave us.
