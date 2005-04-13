@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.34 2005/01/08 00:37:38 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.35 2005/04/13 00:59:47 matisse Exp $
 # 
 # Apache::AuthCookieDBI
 #
@@ -36,7 +36,7 @@ package Apache::AuthCookieDBI;
 use strict;
 use 5.004;
 use vars qw( $VERSION );
-$VERSION = '2.01';
+$VERSION = '2.02';
 
 use Apache::AuthCookie;
 use vars qw( @ISA );
@@ -85,7 +85,7 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.34 $
+    $Revision: 1.35 $
 
 =head1 SYNOPSIS
 
@@ -255,6 +255,13 @@ only readable by root, or put the PerlSetVar in a file only readable by
 root and include it.
 
 This is required and has no default value.
+(NOTE: In AuthCookieDBI versions 1.22 and earlier the secret key either could be
+or was required to be in a seperate file with the path configured with
+PerlSetVar WhateverDBI_SecretKeyFile, as of version 2.0 this is not possible, you
+must put the secret key in the Apache configuration directly, either in the main
+httpd.conf file or in an included file. You might wish to make the file not
+world-readable. Also, make sure that the Perl environment variables are
+not publically available, for example via the /perl-status handler.)
 
 =cut                
 
@@ -277,6 +284,10 @@ defaults to undef.
 
 The password to use to access the database.  This is not required
 and defaults to undef.
+
+Make sure that the Perl environment variables are
+not publically available, for example via the /perl-status handler since the
+password could be exposed.
 
 =cut
 

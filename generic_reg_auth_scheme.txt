@@ -1,4 +1,4 @@
-$Id: generic_reg_auth_scheme.txt,v 1.1 2003/10/10 20:13:33 jacob Exp $
+$Id: generic_reg_auth_scheme.txt,v 1.2 2005/04/13 00:59:47 matisse Exp $
 30 March 2000
 matisse
 
@@ -50,10 +50,10 @@ In global section of virtualhost:
 	# this is probably set by AuthCookie somewhere.
 	PerlSetVar AuthNameCookieName name-of-cookie
 
-	# this is the key we use in the MD5'd checksum.  root should change
-	# this every day because it has to be nobody-readable and is therefore
-	# not all that secure.
-	PerlSetVar AuthNameDBI_SecretKeyfile /path/to/secret/key
+	# this is the key we use in the MD5'd checksum.
+	PerlSetVar AuthNameDBI_SecretKey "long and random string contaning much entropy"
+	# In AuthCookieDBI before version 2.0 you could or had to put the key in
+	# a seperate file via AuthNameDBI_SecretKeyFile, but this is no longer available.
 
 In <Directory> or <Location> sections (server config or .htaccess):
 	AuthType Apache::AuthCookieDBI

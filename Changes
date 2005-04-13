@@ -1,5 +1,10 @@
 Revision history for Perl extension Apache::AuthCookieDBI.
 
+2.02 - Tue Apr 12 17:58:40 PDT 2005
+       Minor documentation fix. Noted that SecretKeyFile has been
+       replaced by SecretKey.
+       
+
 2.0.1 - Fixed bug in  group()
   It was expecting the list of groups to be already split up.
 
