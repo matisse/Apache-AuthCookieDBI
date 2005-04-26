@@ -1,5 +1,13 @@
 Revision history for Perl extension Apache::AuthCookieDBI.
 
+2.03 - Mon Apr 25 10:01:04 PDT 2005
+       Incorporated Lance P Cleveland's changes porting module to mod_perl 1.999_22
+       (That is, Version 2.0.0-RC5 - April 14, 2005)
+       Mainly involves changing almost all references to Apache:: to Apache2::
+       
+       Also some minor documentation changes.
+
+
 2.02 - Tue Apr 12 17:58:40 PDT 2005
        Minor documentation fix. Noted that SecretKeyFile has been
        replaced by SecretKey.
