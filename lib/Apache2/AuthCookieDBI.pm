@@ -1,16 +1,18 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.35 2005/04/13 00:59:47 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.36 2005/04/26 15:44:40 matisse Exp $
 # 
-# Apache::AuthCookieDBI
+# Apache2::AuthCookieDBI
 #
 # An AuthCookie module backed by a DBI database.
 #
-# Copyright (C) 2000-2003 SF Interactive.
+# See end of this file for Copyright notices.
 #
 # Author:  Jacob Davies <jacob@well.com>
+# Maintainer: Matisse Enzer <matisse@matisse.net> (as of version 2.0)
 #
 # Incomplete list of additional contributors:
+#     Lance P Cleveland
 #     Matisse Enzer
 #     Nick Phillips
 #     William McKee
@@ -31,25 +33,25 @@
 #
 #===============================================================================
 
-package Apache::AuthCookieDBI;
+package Apache2::AuthCookieDBI;
 
 use strict;
 use 5.004;
 use vars qw( $VERSION );
-$VERSION = '2.02';
+$VERSION = '2.03';
 
-use Apache::AuthCookie;
+use Apache2::AuthCookie;
 use vars qw( @ISA );
-@ISA = qw( Apache::AuthCookie );
+@ISA = qw( Apache2::AuthCookie );
 
-use Apache::RequestRec;
+use Apache2::RequestRec;
 use Apache::DBI;
-use Apache::Const -compile => qw( OK HTTP_FORBIDDEN );
-use Apache::ServerUtil;
+use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN );
+use Apache2::ServerUtil;
 use Digest::MD5 qw( md5_hex );
 use Date::Calc qw( Today_and_Now Add_Delta_DHMS );
 # Also uses Crypt::CBC if you're using encrypted cookies.
-# Also uses Apache::Session if you're using sessions.
+# Also uses Apache2::Session if you're using sessions.
 
 #===============================================================================
 # F U N C T I O N   D E C L A R A T I O N S
@@ -81,17 +83,39 @@ use vars qw( %CIPHERS );
 
 =head1 NAME
 
-Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
+Apache2::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    $Revision: 1.35 $
+    This is version 2.03
+
+=head1 COMPATIBILITY
+
+Starting witrh version 2.03 the module is in the Apache2::* namespace,
+i.e. Apache2::AuthCookieDBI.  Prior versions were named
+Apache::AuthCookieDBI
+
+=over 2
+
+=item Version 2.03 and later: mod_perl 1.999_22 and later.
+
+=back
+
+Apache::* versions:
+
+=over 2
+
+=item Version 2.0  - 2.02: mod_perl 1.99_XX
+
+=item Version 1.22 was the last version that works with mod_perl 1.x
+
+=back
 
 =head1 SYNOPSIS
 
     # In httpd.conf or .htaccess
         
-    PerlModule Apache::AuthCookieDBI
+    PerlModule Apache2::AuthCookieDBI
     PerlSetVar WhatEverPath /
     PerlSetVar WhatEverLoginScript /login.pl
 
@@ -117,10 +141,10 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
     # Protected by AuthCookieDBI.
     <Directory /www/domain.com/authcookiedbi>
-        AuthType Apache::AuthCookieDBI
+        AuthType Apache2::AuthCookieDBI
         AuthName WhatEver
-        PerlAuthenHandler Apache::AuthCookieDBI->authenticate
-        PerlAuthzHandler Apache::AuthCookieDBI->authorize
+        PerlAuthenHandler Apache2::AuthCookieDBI->authenticate
+        PerlAuthzHandler Apache2::AuthCookieDBI->authorize
         require valid-user
         # or you can require users:
         require user jacob
@@ -130,16 +154,16 @@ Apache::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
     # Login location.
     <Files LOGIN>
-        AuthType Apache::AuthCookieDBI
+        AuthType Apache2::AuthCookieDBI
         AuthName WhatEver
         SetHandler perl-script
-        PerlHandler Apache::AuthCookieDBI->login
+        PerlHandler Apache2::AuthCookieDBI->login
     </Files>
 
 =head1 DESCRIPTION
 
 This module is an authentication handler that uses the basic mechanism provided
-by Apache::AuthCookie with a DBI database for ticket-based protection.  It
+by Apache2::AuthCookie with a DBI database for ticket-based protection.  It
 is based on two tokens being provided, a username and password, which can
 be any strings (there are no illegal characters for either).  The username is
 used to set the remote user as if Basic Authentication was used.
@@ -193,7 +217,7 @@ sub _log_not_set($$)
 {
     my( $r, $variable ) = @_;
     my $auth_name = $r->auth_name;
-    $r->log_error( "Apache::AuthCookieDBI: $variable not set for auth realm
+    $r->log_error( "Apache2::AuthCookieDBI: $variable not set for auth realm
 $auth_name", $r->uri );
 }
 
@@ -227,8 +251,8 @@ AuthName is PrivateBankingSystem they will look like:
 
     PerlSetVar PrivateBankingSystemDBI_DSN "DBI:mysql:database=banking"
 
-See also L<Apache::Authcookie> for the directives required for any kind
-of Apache::AuthCookie-based authentication system.
+See also L<Apache2::Authcookie> for the directives required for any kind
+of Apache2::AuthCookie-based authentication system.
 
 In the following descriptions, replace "WhatEver" with your particular
 AuthName.  The available configuration directives are as follows:
@@ -259,9 +283,10 @@ This is required and has no default value.
 or was required to be in a seperate file with the path configured with
 PerlSetVar WhateverDBI_SecretKeyFile, as of version 2.0 this is not possible, you
 must put the secret key in the Apache configuration directly, either in the main
-httpd.conf file or in an included file. You might wish to make the file not
+httpd.conf file or in an included file.  You might wish to make the file not
 world-readable. Also, make sure that the Perl environment variables are
 not publically available, for example via the /perl-status handler.)
+See also L</"COMPATIBILITY"> in this man page.
 
 =cut                
 
@@ -386,7 +411,7 @@ This is not required and defaults to 'none'.
 =item C<WhatEverDBI_SessionLifetime>
 
 How long tickets are good for after being issued.  Note that presently
-Apache::AuthCookie does not set a client-side expire time, which means that
+Apache2::AuthCookie does not set a client-side expire time, which means that
 most clients will only keep the cookie until the user quits the browser.
 However, if you wish to force people to log in again sooner than that, set
 this value.  This can be 'forever' or a life time specified as:
@@ -402,14 +427,14 @@ This is not required and defaults to '00-24-00-00' or 24 hours.
 
 =item C<WhatEverDBI_SessionModule>
 
-Which Apache::Session module to use for persistent sessions.
-For example, a value could be "Apache::Session::MySQL".  The DSN will
+Which Apache2::Session module to use for persistent sessions.
+For example, a value could be "Apache2::Session::MySQL".  The DSN will
 be the same as used for authentication.  The session created will be
 stored in $r->pnotes( WhatEver ).
 
 If you use this, you should put:
 
-    PerlModule Apache::Session::MySQL
+    PerlModule Apache2::Session::MySQL
 
 (or whatever the name of your session module is) in your httpd.conf file,
 so it is loaded.
@@ -501,13 +526,13 @@ sub authen_cred($$\@)
     # Username goes in credential_0
     my $user = shift @credentials;
     unless ( $user =~ /^.+$/ ) {
-        $r->log_error( "Apache::AuthCookieDBI: no username supplied for auth realm $auth_name", $r->uri );
+        $r->log_error( "Apache2::AuthCookieDBI: no username supplied for auth realm $auth_name", $r->uri );
         return undef;
     }
     # Password goes in credential_1
     my $password = shift @credentials;
     unless ( $password =~ /^.+$/ ) {
-        $r->log_error( "Apache::AuthCookieDBI: no password supplied for auth realm $auth_name", $r->uri );
+        $r->log_error( "Apache2::AuthCookieDBI: no password supplied for auth realm $auth_name", $r->uri );
         return undef;
     }
 
@@ -521,7 +546,7 @@ sub authen_cred($$\@)
     my $dbh = DBI->connect( $c{ DBI_DSN },
                             $c{ DBI_user }, $c{ DBI_password } );
     unless ( defined $dbh ) {
-        $r->log_error( "Apache::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
+        $r->log_error( "Apache2::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
         return undef;
     }
     my $sth = $dbh->prepare( <<"EOS" );
@@ -532,25 +557,25 @@ EOS
     $sth->execute( $user );
     my( $crypted_password ) = $sth->fetchrow_array;
     unless ( defined $crypted_password ) {
-        $r->log_error( "Apache::AuthCookieDBI: couldn't select password from $c{ DBI_DSN }, $c{ DBI_userstable }, $c{ DBI_userfield } for user $user for auth realm $auth_name", $r->uri );
+        $r->log_error( "Apache2::AuthCookieDBI: couldn't select password from $c{ DBI_DSN }, $c{ DBI_userstable }, $c{ DBI_userfield } for user $user for auth realm $auth_name", $r->uri );
         return undef;
     }
 
     # now return unless the passwords match.
     if ( lc $c{ DBI_crypttype } eq 'none' ) {
         unless ( $password eq $crypted_password ) {
-            $r->log_error( "Apache::AuthCookieDBI: plaintext passwords didn't match for user $user for auth realm $auth_name", $r->uri );
+            $r->log_error( "Apache2::AuthCookieDBI: plaintext passwords didn't match for user $user for auth realm $auth_name", $r->uri );
             return undef;
         }
     } elsif ( lc $c{ DBI_crypttype } eq 'crypt' ) {
         my $salt = substr $crypted_password, 0, 2;
         unless ( crypt( $password, $salt ) eq $crypted_password ) {
-            $r->log_error( "Apache::AuthCookieDBI: crypted passwords didn't match for user $user for auth realm $auth_name", $r->uri );
+            $r->log_error( "Apache2::AuthCookieDBI: crypted passwords didn't match for user $user for auth realm $auth_name", $r->uri );
             return undef;
         }
     } elsif ( lc $c{ DBI_crypttype } eq 'md5' ) {
         unless ( md5_hex( $password ) eq $crypted_password ) {
-            $r->log_error( "Apache::AuthCookieDBI: MD5 passwords didn't match for user $user for auth realm $auth_name", $r->uri );
+            $r->log_error( "Apache2::AuthCookieDBI: MD5 passwords didn't match for user $user for auth realm $auth_name", $r->uri );
             return undef;
         }
     }
@@ -601,7 +626,7 @@ EOS
     # calculate the hash of *that* and the secret key again.
     my $secretkey = $c{DBI_secretkey};
     unless ( defined $secretkey ) {
-        $r->log_error( "Apache::AuthCookieDBI: didn't have the secret key for auth realm $auth_name", $r->uri );
+        $r->log_error( "Apache2::AuthCookieDBI: didn't have the secret key for auth realm $auth_name", $r->uri );
         return undef;
     }
     my $hash = md5_hex( join ':', $secretkey, md5_hex(
@@ -653,7 +678,7 @@ sub authen_ses_key($$$)
     # Get the secret key.
     my $secretkey = $c{ DBI_secretkey };
     unless ( defined $secretkey ) {
-        $r->log_error( "Apache::AuthCookieDBI: didn't have the secret key from for auth realm $auth_name", $r->uri );
+        $r->log_error( "Apache2::AuthCookieDBI: didn't have the secret key from for auth realm $auth_name", $r->uri );
         return undef;
     }
     
@@ -664,7 +689,7 @@ sub authen_ses_key($$$)
     } else {
         # Check that this looks like an encrypted hex-encoded string.
         unless ( $encrypted_session_key =~ /^[0-9a-fA-F]+$/ ) {
-            $r->log_error( "Apache::AuthCookieDBI: encrypted session key $encrypted_session_key doesn't look like it's properly hex-encoded for auth realm $auth_name", $r->uri );
+            $r->log_error( "Apache2::AuthCookieDBI: encrypted session key $encrypted_session_key doesn't look like it's properly hex-encoded for auth realm $auth_name", $r->uri );
             return undef;
         }
 
@@ -684,7 +709,7 @@ sub authen_ses_key($$$)
             $cipher = $CIPHERS{ "blowfish_pp:$auth_name" }
                ||= Crypt::CBC->new( $secretkey, 'Blowfish_PP' );
         } else {
-            $r->log_error( "Apache::AuthCookieDBI: unknown encryption type $c{ DBI_encryptiontype } for auth realm $auth_name", $r->uri );
+            $r->log_error( "Apache2::AuthCookieDBI: unknown encryption type $c{ DBI_encryptiontype } for auth realm $auth_name", $r->uri );
             return undef;
         }
         $session_key = $cipher->decrypt_hex( $encrypted_session_key );
@@ -696,21 +721,21 @@ sub authen_ses_key($$$)
 
     # Let's check that we got passed sensible values in the cookie.
     unless ( $enc_user =~ /^[a-zA-Z0-9_\%]+$/ ) {
-        $r->log_error( "Apache::AuthCookieDBI: bad percent-encoded user $enc_user recovered from session ticket for auth_realm $auth_name", $r->uri );
+        $r->log_error( "Apache2::AuthCookieDBI: bad percent-encoded user $enc_user recovered from session ticket for auth_realm $auth_name", $r->uri );
         return undef;
     }
     # decode the user
     my $user = _percent_decode $enc_user;
     unless ( $issue_time =~ /^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$/ ) {
-        $r->log_error( "Apache::AuthCookieDBI: bad issue time $issue_time recovered from ticket for user $user for auth_realm $auth_name", $r->uri );
+        $r->log_error( "Apache2::AuthCookieDBI: bad issue time $issue_time recovered from ticket for user $user for auth_realm $auth_name", $r->uri );
         return undef;
     }
     unless ( $expire_time =~ /^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$/ ) {
-        $r->log_error( "Apache::AuthCookieDBI: bad expire time $expire_time recovered from ticket for user $user for auth_realm $auth_name", $r->uri );
+        $r->log_error( "Apache2::AuthCookieDBI: bad expire time $expire_time recovered from ticket for user $user for auth_realm $auth_name", $r->uri );
         return undef;
     }
     unless ( $supplied_hash =~ /^[0-9a-fA-F]{32}$/ ) {
-        $r->log_error( "Apache::AuthCookieDBI: bad hash $supplied_hash recovered from ticket for user $user for auth_realm $auth_name", $r->uri );
+        $r->log_error( "Apache2::AuthCookieDBI: bad hash $supplied_hash recovered from ticket for user $user for auth_realm $auth_name", $r->uri );
         return undef;
     }
 
@@ -720,7 +745,7 @@ sub authen_ses_key($$$)
         my $dbh = DBI->connect( $c{ DBI_DSN },
                                 $c{ DBI_user }, $c{ DBI_password } );
         unless ( defined $dbh ) {
-            $r->log_error( "Apache::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
+            $r->log_error( "Apache2::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
             return undef;
         }
         eval {
@@ -730,7 +755,7 @@ sub authen_ses_key($$$)
             };
         };
         if ( $@ ) {
-            $r->log_error( "Apache::AuthCookieDBI: failed to tie session hash using session id $session_id for user $user for auth_realm $auth_name, error was $@", $r->uri );
+            $r->log_error( "Apache2::AuthCookieDBI: failed to tie session hash using session id $session_id for user $user for auth_realm $auth_name, error was $@", $r->uri );
             return undef;
         }
         # Update a timestamp at the top level to make sure we sync.
@@ -747,7 +772,7 @@ sub authen_ses_key($$$)
 
     # Compare it to the hash they gave us.
     unless ( $hash eq $supplied_hash ) {
-        $r->log_error( "Apache::AuthCookieDBI: hash in cookie did not match calculated hash of contents for user $user for auth realm $auth_name", $r->uri );
+        $r->log_error( "Apache2::AuthCookieDBI: hash in cookie did not match calculated hash of contents for user $user for auth realm $auth_name", $r->uri );
         return undef;
     }
 
@@ -787,7 +812,7 @@ sub group($$\@)
     my $dbh = DBI->connect( $c{ DBI_DSN },
                             $c{ DBI_user }, $c{ DBI_password } );
     unless ( defined $dbh ) {
-        $r->log_error( "Apache::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
+        $r->log_error( "Apache2::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
         return undef;
     }
 
@@ -800,10 +825,10 @@ AND $c{ DBI_groupuserfield } = ?
 EOS
     foreach my $group ( @groups ) {
         $sth->execute( $group, $user );
-        return Apache::OK if ( $sth->fetchrow_array );
+        return Apache2::Const::OK if ( $sth->fetchrow_array );
     }
-    $r->log_error( "Apache::AuthCookieDBI: user $user was not a member of any of the required groups @groups for auth realm $auth_name", $r->uri );
-    return Apache::HTTP_FORBIDDEN;
+    $r->log_error( "Apache2::AuthCookieDBI: user $user was not a member of any of the required groups @groups for auth realm $auth_name", $r->uri );
+    return Apache2::Const::HTTP_FORBIDDEN;
 }
 
 1;
@@ -842,7 +867,9 @@ A minimal CREATE TABLE statement might look like:
 
 =head1 COPYRIGHT
 
-Copyright (C) 2002 SF Interactive.
+ Copyright (C) 2002 SF Interactive.
+ Copyright (C) 2003-2004 Jacob Davies
+ Copyright (C) 2004-2005 Matisse Enzer
 
 =head1 LICENSE
 
@@ -866,8 +893,17 @@ Jacob Davies
 
         <jacob@well.com>
 
+=head1 MAINTAINER
+
+Matisse Enzer
+
+        <matisse@matisse.net>
+        
 =head1 SEE ALSO
 
-Apache::AuthCookie(1)
+Latest version: http://search.cpan.org/search?query=Apache%3A%3AAuthCookieDBI&mode=all
+
+Apache2::AuthCookie(1)
+Apache2::Session(1)
 
 =cut
