@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.36 2005/04/26 15:44:40 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.37 2005/07/26 04:54:58 matisse Exp $
 # 
 # Apache2::AuthCookieDBI
 #
@@ -11,11 +11,6 @@
 # Author:  Jacob Davies <jacob@well.com>
 # Maintainer: Matisse Enzer <matisse@matisse.net> (as of version 2.0)
 #
-# Incomplete list of additional contributors:
-#     Lance P Cleveland
-#     Matisse Enzer
-#     Nick Phillips
-#     William McKee
 #
 # This library is free software; you can redistribute it and/or
 # modify it under the terms of the GNU Lesser General Public
@@ -38,7 +33,7 @@ package Apache2::AuthCookieDBI;
 use strict;
 use 5.004;
 use vars qw( $VERSION );
-$VERSION = '2.03';
+$VERSION = '2.031';
 
 use Apache2::AuthCookie;
 use vars qw( @ISA );
@@ -60,6 +55,8 @@ use Date::Calc qw( Today_and_Now Add_Delta_DHMS );
 sub _log_not_set($$);
 sub _dir_config_var($$);
 sub _dbi_config_vars($);
+sub _dbi_connect($);
+sub _get_crypted_password($$$);
 sub _now_year_month_day_hour_minute_second();
 sub _percent_encode($);
 sub _percent_decode($);
@@ -483,6 +480,50 @@ sub _percent_decode($)
     return $str;
 }
 
+#-------------------------------------------------------------------------------
+# _dbi_connect -- Get a database handle.
+
+sub _dbi_connect($) {
+    my ($r) = @_;
+    my %c = _dbi_config_vars $r;
+
+    # get the crypted password from the users database for this user.
+    my $dbh = DBI->connect_cached( $c{ DBI_DSN },
+                                   $c{ DBI_user }, $c{ DBI_password } );
+    if ( defined $dbh ) {
+    	    return $dbh;
+    } else {
+    	    my $auth_name = $r->auth_name;
+        $r->log_error( "Apache2::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
+        my ($pkg,$file,$line,$sub) = caller(1);
+        $r->log_error( "Apache2::AuthCookieDBI::_dbi_connect called in $sub at line $line");
+        return undef;
+    }    
+}
+
+#-------------------------------------------------------------------------------
+# _get_crypted_password -- Get the users' password from the database
+
+sub _get_crypted_password($$$) {
+	my ($r,$user,$c) = @_;
+    my $dbh = _dbi_connect($r) || return undef;
+
+	my $sth = $dbh->prepare_cached( <<"EOS" );
+SELECT $c->{ DBI_passwordfield }
+FROM $c->{ DBI_userstable }
+WHERE $c->{ DBI_userfield } = ?
+EOS
+	$sth->execute($user);
+	my ($crypted_password) = $sth->fetchrow_array;
+	if ( defined $crypted_password ) {
+        return $crypted_password;
+	} else {
+		my $auth_name = $r->auth_name;
+		$r->log_error("Apache2::AuthCookieDBI: couldn't select password from $c->{ DBI_DSN }, $c->{ DBI_userstable }, $c->{ DBI_userfield } for user $user for auth realm $auth_name",$r->uri);
+		return undef;
+	}
+}
+
 #===============================================================================
 # P U B L I C   F U N C T I O N S
 #===============================================================================
@@ -525,12 +566,14 @@ sub authen_cred($$\@)
 
     # Username goes in credential_0
     my $user = shift @credentials;
+    $user = '' unless defined $user;
     unless ( $user =~ /^.+$/ ) {
         $r->log_error( "Apache2::AuthCookieDBI: no username supplied for auth realm $auth_name", $r->uri );
         return undef;
     }
     # Password goes in credential_1
     my $password = shift @credentials;
+    $password = '' unless defined $password.
     unless ( $password =~ /^.+$/ ) {
         $r->log_error( "Apache2::AuthCookieDBI: no password supplied for auth realm $auth_name", $r->uri );
         return undef;
@@ -543,23 +586,7 @@ sub authen_cred($$\@)
     my %c = _dbi_config_vars $r;
 
     # get the crypted password from the users database for this user.
-    my $dbh = DBI->connect( $c{ DBI_DSN },
-                            $c{ DBI_user }, $c{ DBI_password } );
-    unless ( defined $dbh ) {
-        $r->log_error( "Apache2::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
-        return undef;
-    }
-    my $sth = $dbh->prepare( <<"EOS" );
-SELECT $c{ DBI_passwordfield }
-FROM $c{ DBI_userstable }
-WHERE $c{ DBI_userfield } = ?
-EOS
-    $sth->execute( $user );
-    my( $crypted_password ) = $sth->fetchrow_array;
-    unless ( defined $crypted_password ) {
-        $r->log_error( "Apache2::AuthCookieDBI: couldn't select password from $c{ DBI_DSN }, $c{ DBI_userstable }, $c{ DBI_userfield } for user $user for auth realm $auth_name", $r->uri );
-        return undef;
-    }
+    my $crypted_password = _get_crypted_password($r, $user, \%c);
 
     # now return unless the passwords match.
     if ( lc $c{ DBI_crypttype } eq 'none' ) {
@@ -726,6 +753,7 @@ sub authen_ses_key($$$)
     }
     # decode the user
     my $user = _percent_decode $enc_user;
+    $issue_time = '' unless defined $issue_time;
     unless ( $issue_time =~ /^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$/ ) {
         $r->log_error( "Apache2::AuthCookieDBI: bad issue time $issue_time recovered from ticket for user $user for auth_realm $auth_name", $r->uri );
         return undef;
@@ -742,12 +770,8 @@ sub authen_ses_key($$$)
     # If we're using a session module, check that their session exist.
     if ( defined $c{ DBI_sessionmodule } ) {
         my %session;
-        my $dbh = DBI->connect( $c{ DBI_DSN },
-                                $c{ DBI_user }, $c{ DBI_password } );
-        unless ( defined $dbh ) {
-            $r->log_error( "Apache2::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
-            return undef;
-        }
+        my $dbh = _dbi_connect($r) || return undef;
+
         eval {
             tie %session, $c{ DBI_sessionmodule }, $session_id, +{
               Handle => $dbh,
@@ -809,15 +833,10 @@ sub group($$\@)
     my $user = $r->user;
 
     # See if we have a row in the groups table for this user/group.
-    my $dbh = DBI->connect( $c{ DBI_DSN },
-                            $c{ DBI_user }, $c{ DBI_password } );
-    unless ( defined $dbh ) {
-        $r->log_error( "Apache2::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
-        return undef;
-    }
+    my $dbh = _dbi_connect($r) || return undef;
 
     # Now loop through all the groups to see if we're a member of any:
-    my $sth = $dbh->prepare( <<"EOS" );
+    my $sth = $dbh->prepare_cached( <<"EOS" );
 SELECT $c{ DBI_groupuserfield }
 FROM $c{ DBI_groupstable }
 WHERE $c{ DBI_groupfield } = ?
@@ -832,6 +851,8 @@ EOS
 }
 
 1;
+
+
 __END__
 
 =back
@@ -839,7 +860,7 @@ __END__
 =head1 DATABASE SCHEMAS
 
 For this module to work, the database tables must be laid out at least somewhat
-according to the following rules:  the user field must be a primary key
+according to the following rules:  the user field must be a UNIQUE KEY
 so there is only one row per user; the password field must be NOT NULL.  If
 you're using MD5 passwords the password field must be 32 characters long to
 allow enough space for the output of md5_hex().  If you're using crypt()
@@ -887,23 +908,37 @@ You should have received a copy of the GNU Lesser General Public
 License along with this library; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-=head1 AUTHOR
+=head1 CREDITS
 
-Jacob Davies
-
-        <jacob@well.com>
+  Original Author: Jacob Davies
+  Incomplete list of additional contributors (alphabetical by first name):
+    Jay Strauss
+    Lance P Cleveland
+    Matisse Enzer
+    Nick Phillips
+    William McKee
 
 =head1 MAINTAINER
 
 Matisse Enzer
 
-        <matisse@matisse.net>
+        <matisse@spamcop.net>
         
 =head1 SEE ALSO
 
-Latest version: http://search.cpan.org/search?query=Apache%3A%3AAuthCookieDBI&mode=all
+Latest version: http://search.cpan.org/perldoc?Apache2%3A%3AAuthCookieDBI
 
 Apache2::AuthCookie(1)
 Apache2::Session(1)
+
+=head1 TODO
+
+=over 2
+
+=item Add a proper set of regression tests!!! Easier said than done though.
+
+=item Refactor authen_cred() and authen_ses_key() into several smaller private methods.
+
+=back
 
 =cut
