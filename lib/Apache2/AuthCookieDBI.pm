@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.37 2005/07/26 04:54:58 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.38 2007/02/03 19:58:54 matisse Exp $
 # 
 # Apache2::AuthCookieDBI
 #
@@ -573,7 +573,7 @@ sub authen_cred($$\@)
     }
     # Password goes in credential_1
     my $password = shift @credentials;
-    $password = '' unless defined $password.
+    $password = '' unless defined $password;
     unless ( $password =~ /^.+$/ ) {
         $r->log_error( "Apache2::AuthCookieDBI: no password supplied for auth realm $auth_name", $r->uri );
         return undef;
@@ -631,6 +631,7 @@ sub authen_cred($$\@)
     # If we are using sessions, we create a new session for this login.
     my $session_id = '';
     if ( defined $c{ DBI_sessionmodule } ) {
+        my $dbh = _dbi_connect($r);
         my %session;
         tie %session, $c{ DBI_sessionmodule }, undef, +{
           Handle => $dbh,
