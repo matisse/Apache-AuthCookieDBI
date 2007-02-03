@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.38 2007/02/03 19:58:54 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.39 2007/02/03 20:04:49 matisse Exp $
 # 
 # Apache2::AuthCookieDBI
 #
@@ -31,13 +31,13 @@
 package Apache2::AuthCookieDBI;
 
 use strict;
+use warnings;
 use 5.004;
 use vars qw( $VERSION );
-$VERSION = '2.031';
+$VERSION = '2.10';
 
 use Apache2::AuthCookie;
-use vars qw( @ISA );
-@ISA = qw( Apache2::AuthCookie );
+use base qw( Apache2::AuthCookie );
 
 use Apache2::RequestRec;
 use Apache::DBI;
@@ -47,24 +47,6 @@ use Digest::MD5 qw( md5_hex );
 use Date::Calc qw( Today_and_Now Add_Delta_DHMS );
 # Also uses Crypt::CBC if you're using encrypted cookies.
 # Also uses Apache2::Session if you're using sessions.
-
-#===============================================================================
-# F U N C T I O N   D E C L A R A T I O N S
-#===============================================================================
-
-sub _log_not_set($$);
-sub _dir_config_var($$);
-sub _dbi_config_vars($);
-sub _dbi_connect($);
-sub _get_crypted_password($$$);
-sub _now_year_month_day_hour_minute_second();
-sub _percent_encode($);
-sub _percent_decode($);
-
-sub extra_session_info($$\@);
-sub authen_cred($$\@);
-sub authen_ses_key($$$);
-sub group($$\@);
 
 #===============================================================================
 # P A C K A G E   G L O B A L S
@@ -210,7 +192,7 @@ and the login form is shown again.
 #-------------------------------------------------------------------------------
 # _log_not_set -- Log that a particular authentication variable was not set.
 
-sub _log_not_set($$)
+sub _log_not_set
 {
     my( $r, $variable ) = @_;
     my $auth_name = $r->auth_name;
@@ -221,7 +203,7 @@ $auth_name", $r->uri );
 #-------------------------------------------------------------------------------
 # _dir_config_var -- Get a particular authentication variable.
 
-sub _dir_config_var($$)
+sub _dir_config_var
 {
     my( $r, $variable ) = @_;
     my $auth_name = $r->auth_name;
@@ -234,8 +216,7 @@ sub _dir_config_var($$)
 # had errors or a hash of the values if they were all OK.  Takes a request
 # object.
 
-sub _dbi_config_vars($)
-{
+sub _dbi_config_vars {
     my( $r ) = @_;
 
     my %c; # config variables hash
@@ -453,7 +434,7 @@ be created.
 # _now_year_month_day_hour_minute_second -- Return a string with the time in
 # this order separated by dashes.
 
-sub _now_year_month_day_hour_minute_second()
+sub _now_year_month_day_hour_minute_second
 {
     return sprintf '%04d-%02d-%02d-%02d-%02d-%02d', Today_and_Now;
 }
@@ -462,7 +443,7 @@ sub _now_year_month_day_hour_minute_second()
 # _percent_encode -- Percent-encode (like URI encoding) any non-alphanumberics
 # in the supplied string.
 
-sub _percent_encode($)
+sub _percent_encode
 {
     my( $str ) = @_;
     $str =~ s/([^\w])/ uc sprintf '%%%02x', ord $1 /eg;
@@ -473,7 +454,7 @@ sub _percent_encode($)
 # _percent_decode -- Percent-decode (like URI decoding) any %XX sequences in
 # the supplied string.
 
-sub _percent_decode($)
+sub _percent_decode
 {
     my( $str ) = @_;
     $str =~ s/%([0-9a-fA-F]{2})/ pack( "c",hex( $1 ) ) /ge;
@@ -483,7 +464,7 @@ sub _percent_decode($)
 #-------------------------------------------------------------------------------
 # _dbi_connect -- Get a database handle.
 
-sub _dbi_connect($) {
+sub _dbi_connect {
     my ($r) = @_;
     my %c = _dbi_config_vars $r;
 
@@ -504,7 +485,7 @@ sub _dbi_connect($) {
 #-------------------------------------------------------------------------------
 # _get_crypted_password -- Get the users' password from the database
 
-sub _get_crypted_password($$$) {
+sub _get_crypted_password {
 	my ($r,$user,$c) = @_;
     my $dbh = _dbi_connect($r) || return undef;
 
@@ -547,7 +528,7 @@ The default implementation does nothing.
 
 =cut
 
-sub extra_session_info ($$\@) {
+sub extra_session_info {
     my ($self, $r, @credentials) = @_;
 
     return "";
@@ -558,7 +539,7 @@ sub extra_session_info ($$\@) {
 # a new session key for this user that can be stored in the cookie.
 # If there is a problem, return a bogus session key.
 
-sub authen_cred($$\@)
+sub authen_cred
 {
     my( $self, $r, @credentials ) = @_;
 
@@ -694,7 +675,7 @@ sub authen_cred($$\@)
 #-------------------------------------------------------------------------------
 # Take a session key and check that it is still valid; if so, return the user.
 
-sub authen_ses_key($$$)
+sub authen_ses_key
 {
     my( $self, $r, $encrypted_session_key ) = @_;
 
@@ -821,7 +802,7 @@ sub authen_ses_key($$$)
 # Take a list of groups and make sure that the current remote user is a member
 # of one of them.
 
-sub group($$\@)
+sub group
 {
     my( $self, $r, $groups ) = @_;
     my @groups = split(/\s+/o, $groups);
