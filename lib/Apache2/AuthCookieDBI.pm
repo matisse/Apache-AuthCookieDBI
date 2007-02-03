@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.39 2007/02/03 20:04:49 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.40 2007/02/03 21:58:08 matisse Exp $
 # 
 # Apache2::AuthCookieDBI
 #
@@ -47,15 +47,25 @@ use Digest::MD5 qw( md5_hex );
 use Date::Calc qw( Today_and_Now Add_Delta_DHMS );
 # Also uses Crypt::CBC if you're using encrypted cookies.
 # Also uses Apache2::Session if you're using sessions.
+use English qw(-no_match_vars);
 
 #===============================================================================
 # P A C K A G E   G L O B A L S
 #===============================================================================
 
-use vars qw( %CIPHERS );
+my %CIPHERS = ();
 # Stores Cipher::CBC objects in $CIPHERS{ idea:AuthName },
 # $CIPHERS{ des:AuthName } etc.
 
+my $EMPTY_STRING = q{};
+
+my $WHITESPACE_REGEX = qr/ \s+ /x;
+my $HEX_STRING_REGEX = qr/ \A [0-9a-fA-F] \z /x;
+my $THIRTY_TWO_CHARACTER_HEX_STRING_REGEX = qr/  \A [0-9a-fA-F]{32} \z /x;
+my $DATE_TIME_STRING_REGEX = qr/ \A \d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2} \z /x;
+my $PERCENT_ENCODED_STRING_REGEX = qr/ \A [a-zA-Z0-9_\%]+ \z /x;
+my $COLON_REGEX = qr/ : /x;
+my $HYPHEN_REGEX =qr/ - /x;
 #===============================================================================
 # P E R L D O C
 #===============================================================================
@@ -66,29 +76,13 @@ Apache2::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    This is version 2.03
+    This is version 2.10
 
 =head1 COMPATIBILITY
 
-Starting witrh version 2.03 the module is in the Apache2::* namespace,
-i.e. Apache2::AuthCookieDBI.  Prior versions were named
-Apache::AuthCookieDBI
-
-=over 2
-
-=item Version 2.03 and later: mod_perl 1.999_22 and later.
-
-=back
-
-Apache::* versions:
-
-=over 2
-
-=item Version 2.0  - 2.02: mod_perl 1.99_XX
-
-=item Version 1.22 was the last version that works with mod_perl 1.x
-
-=back
+Starting with version 2.03 the module is in the Apache2::* namespace,
+L<Apache2::AuthCookieDBI>.  For F<mod_perl1> versions
+there is: L<Apache::AuthCookieDBI>
 
 =head1 SYNOPSIS
 
@@ -189,6 +183,59 @@ and the login form is shown again.
 # P R I V A T E   F U N C T I O N S
 #===============================================================================
 
+# Get the cipher from the cache, or create a new one if the
+# cached cipher hasn't been created, & decrypt the session key.
+sub _get_cipher_type {
+     my ($dbi_encryption_type,$auth_name,$secret_key) = @_;
+     $dbi_encryption_type = lc $dbi_encryption_type;
+     
+     my %cipher_type = (
+         des =>    sub {
+             return $CIPHERS{ "des:$auth_name" } || Crypt::CBC->new( $secret_key, 'DES' );
+         },
+         idea => sub {
+            return $CIPHERS{ "idea:$auth_name" } || Crypt::CBC->new( $secret_key, 'IDEA' );
+         },
+         blowfish => sub {
+             return  $CIPHERS{ "blowfish:$auth_name" } || Crypt::CBC->new( $secret_key, 'Blowfish' );
+         },
+         blowfish_pp => sub {
+             return $CIPHERS{ "blowfish_pp:$auth_name" } || Crypt::CBC->new( $secret_key, 'Blowfish_PP' );
+         },
+     );
+     my $type = $cipher_type{$dbi_encryption_type}->();
+     return $type;
+}
+
+
+sub _encrypt_session_key {
+    my $session_key           = shift;
+    my $secret_key             = shift;
+    my $auth_name             = shift;
+    my $dbi_encryption_type   = lc shift;
+
+    my %encryption_handlers = (
+        none => sub { return $session_key },
+        des => sub { 
+              $CIPHERS{ "des:$auth_name"      }  ||= Crypt::CBC->new( $secret_key, 'DES'      );
+              return $CIPHERS{ "des:$auth_name" }->encrypt_hex( $session_key );
+        },
+        idea => sub {
+             $CIPHERS{ "idea:$auth_name"      }  ||= Crypt::CBC->new( $secret_key, 'IDEA');
+             return $CIPHERS{ "idea:$auth_name" }->encrypt_hex( $session_key );
+        },
+        blowfish => sub {
+            $CIPHERS{ "blowfish:$auth_name" } ||= Crypt::CBC->new( $secret_key, 'Blowfish' );
+            return $CIPHERS{"blowfish:$auth_name" }->encrypt_hex( $session_key );
+        },
+        blowfish_pp => sub {
+            $CIPHERS{ "blowfish_pp:$auth_name" } ||= Crypt::CBC->new( $secret_key, 'Blowfish_PP' );
+            return $CIPHERS{"blowfish_pp:$auth_name" }->encrypt_hex( $session_key );
+        },
+    );
+    my $encrypted_key = $encryption_handlers{$dbi_encryption_type}->();
+    return $encrypted_key;
+}
 #-------------------------------------------------------------------------------
 # _log_not_set -- Log that a particular authentication variable was not set.
 
@@ -196,7 +243,7 @@ sub _log_not_set
 {
     my( $r, $variable ) = @_;
     my $auth_name = $r->auth_name;
-    $r->log_error( "Apache2::AuthCookieDBI: $variable not set for auth realm
+    return $r->log_error( "Apache2::AuthCookieDBI: $variable not set for auth realm
 $auth_name", $r->uri );
 }
 
@@ -244,9 +291,9 @@ user information.  This is required and has no default value.
 
 =cut
 
-    unless ( $c{ DBI_DSN } = _dir_config_var $r, 'DBI_DSN' ) {
+    if ( $c{ DBI_DSN } ne _dir_config_var $r, 'DBI_DSN' ) {
         _log_not_set $r, 'DBI_DSN';
-        return undef;
+        return;
     }
 
 =item C<WhateverDBI_SecretKey>
@@ -268,9 +315,9 @@ See also L</"COMPATIBILITY"> in this man page.
 
 =cut                
 
-    unless ( $c{ DBI_secretkey } = _dir_config_var $r, 'DBI_SecretKey' ) {
+    if ( $c{ DBI_secretkey } ne _dir_config_var $r, 'DBI_SecretKey' ) {
         _log_not_set $r, 'DBI_SecretKey';
-        return undef;
+        return;
     }
 
 =item C<WhatEverDBI_User>
@@ -446,7 +493,8 @@ sub _now_year_month_day_hour_minute_second
 sub _percent_encode
 {
     my( $str ) = @_;
-    $str =~ s/([^\w])/ uc sprintf '%%%02x', ord $1 /eg;
+    my $not_a_word = qr/ ( \W ) /x;
+    $str =~ s/$not_a_word/ uc sprintf '%%%02x', ord $1 /xmeg;
     return $str;
 }
 
@@ -457,7 +505,8 @@ sub _percent_encode
 sub _percent_decode
 {
     my( $str ) = @_;
-    $str =~ s/%([0-9a-fA-F]{2})/ pack( "c",hex( $1 ) ) /ge;
+    my $percent_hex_string_regex = qr/ %([0-9a-fA-F]{2}) /x;
+    $str =~ s/$percent_hex_string_regex/ pack( "c",hex( $1 ) ) /xmge;
     return $str;
 }
 
@@ -478,7 +527,7 @@ sub _dbi_connect {
         $r->log_error( "Apache2::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name", $r->uri );
         my ($pkg,$file,$line,$sub) = caller(1);
         $r->log_error( "Apache2::AuthCookieDBI::_dbi_connect called in $sub at line $line");
-        return undef;
+        return;
     }    
 }
 
@@ -487,7 +536,7 @@ sub _dbi_connect {
 
 sub _get_crypted_password {
 	my ($r,$user,$c) = @_;
-    my $dbh = _dbi_connect($r) || return undef;
+    my $dbh = _dbi_connect($r) || return;
 
 	my $sth = $dbh->prepare_cached( <<"EOS" );
 SELECT $c->{ DBI_passwordfield }
@@ -501,10 +550,26 @@ EOS
 	} else {
 		my $auth_name = $r->auth_name;
 		$r->log_error("Apache2::AuthCookieDBI: couldn't select password from $c->{ DBI_DSN }, $c->{ DBI_userstable }, $c->{ DBI_userfield } for user $user for auth realm $auth_name",$r->uri);
-		return undef;
+		return;
 	}
 }
 
+# Takes a list and returns a list of the same size.
+# Any element in the inputs that is defined is returned unchanged. Elements that
+# were undef are returned as empty strings.
+sub _defined_or_empty {
+    my @args        = @_;
+    my @all_defined = ();
+    foreach my $arg (@args) {
+        if ( defined $arg ) {
+            push @all_defined, $arg;
+        }
+        else {
+            push @all_defined, $EMPTY_STRING;
+        }
+    }
+    return @all_defined;
+}
 #===============================================================================
 # P U B L I C   F U N C T I O N S
 #===============================================================================
@@ -522,7 +587,7 @@ This method returns extra fields to add to the session key.
 It should return a string consisting of ":field1:field2:field3"
 (where each field is preceded by a colon).
 
-The default implementation does nothing.
+The default implementation returns an empty string.
 
 =back
 
@@ -531,7 +596,7 @@ The default implementation does nothing.
 sub extra_session_info {
     my ($self, $r, @credentials) = @_;
 
-    return "";
+    return $EMPTY_STRING;
 }
 
 #-------------------------------------------------------------------------------
@@ -539,29 +604,21 @@ sub extra_session_info {
 # a new session key for this user that can be stored in the cookie.
 # If there is a problem, return a bogus session key.
 
-sub authen_cred
-{
-    my( $self, $r, @credentials ) = @_;
-
+sub authen_cred {
+    my ( $self, $r,        @credentials )       = @_;
+    my ( $user, $password, @extra_data ) = @credentials;
     my $auth_name = $r->auth_name;
-
-    # Username goes in credential_0
-    my $user = shift @credentials;
-    $user = '' unless defined $user;
-    unless ( $user =~ /^.+$/ ) {
+    ($user, $password) = _defined_or_empty($user,$password);
+    
+    if ( ! length $user ) {
         $r->log_error( "Apache2::AuthCookieDBI: no username supplied for auth realm $auth_name", $r->uri );
-        return undef;
-    }
-    # Password goes in credential_1
-    my $password = shift @credentials;
-    $password = '' unless defined $password;
-    unless ( $password =~ /^.+$/ ) {
-        $r->log_error( "Apache2::AuthCookieDBI: no password supplied for auth realm $auth_name", $r->uri );
-        return undef;
+        return;
     }
 
-    # Extra data can be put in credential_2, _3, etc.
-    my @extra_data = @credentials;
+    if  ( ! length $password ) {
+        $r->log_error( "Apache2::AuthCookieDBI: no password supplied for auth realm $auth_name", $r->uri );
+        return;
+    }
 
     # get the configuration information.
     my %c = _dbi_config_vars $r;
@@ -571,20 +628,20 @@ sub authen_cred
 
     # now return unless the passwords match.
     if ( lc $c{ DBI_crypttype } eq 'none' ) {
-        unless ( $password eq $crypted_password ) {
+        if ( $password ne $crypted_password ) {
             $r->log_error( "Apache2::AuthCookieDBI: plaintext passwords didn't match for user $user for auth realm $auth_name", $r->uri );
-            return undef;
+            return;
         }
     } elsif ( lc $c{ DBI_crypttype } eq 'crypt' ) {
         my $salt = substr $crypted_password, 0, 2;
-        unless ( crypt( $password, $salt ) eq $crypted_password ) {
+        if ( crypt( $password, $salt ) ne $crypted_password ) {
             $r->log_error( "Apache2::AuthCookieDBI: crypted passwords didn't match for user $user for auth realm $auth_name", $r->uri );
-            return undef;
+            return;
         }
     } elsif ( lc $c{ DBI_crypttype } eq 'md5' ) {
-        unless ( md5_hex( $password ) eq $crypted_password ) {
+        if ( md5_hex( $password ) ne $crypted_password ) {
             $r->log_error( "Apache2::AuthCookieDBI: MD5 passwords didn't match for user $user for auth realm $auth_name", $r->uri );
-            return undef;
+            return;
         }
     }
 
@@ -595,7 +652,7 @@ sub authen_cred
         $expire_time = '9999-01-01-01-01-01';
     } else {
         my( $deltaday, $deltahour, $deltaminute, $deltasecond )
-           = split /-/, $c{ DBI_sessionlifetime };
+           = split $HYPHEN_REGEX, $c{ DBI_sessionlifetime };
         # Figure out the expire time.
         $expire_time = sprintf(
             '%04d-%02d-%02d-%02d-%02d-%02d',
@@ -610,7 +667,7 @@ sub authen_cred
     my $enc_user = _percent_encode $user;
 
     # If we are using sessions, we create a new session for this login.
-    my $session_id = '';
+    my $session_id = $EMPTY_STRING;
     if ( defined $c{ DBI_sessionmodule } ) {
         my $dbh = _dbi_connect($r);
         my %session;
@@ -634,41 +691,19 @@ sub authen_cred
     # Now we calculate the hash of this and the secret key and then
     # calculate the hash of *that* and the secret key again.
     my $secretkey = $c{DBI_secretkey};
-    unless ( defined $secretkey ) {
+    if ( ! defined $secretkey ) {
         $r->log_error( "Apache2::AuthCookieDBI: didn't have the secret key for auth realm $auth_name", $r->uri );
-        return undef;
+        return;
     }
-    my $hash = md5_hex( join ':', $secretkey, md5_hex(
-        join ':', $public_part, $secretkey
+    my $hash = md5_hex( join q{:}, $secretkey, md5_hex(
+        join q{:}, $public_part, $secretkey
     ) );
 
     # Now we add this hash to the end of the public part.
     my $session_key = "$public_part:$hash";
 
     # Now we encrypt this and return it.
-    my $encrypted_session_key;
-    if ( $c{ DBI_encryptiontype } eq 'none' ) {
-        $encrypted_session_key = $session_key;
-    } elsif ( lc $c{ DBI_encryptiontype } eq 'des'      ) {
-        $CIPHERS{ "des:$auth_name"      }
-           ||= Crypt::CBC->new( $secretkey, 'DES'      );
-        $encrypted_session_key = $CIPHERS{
-            "des:$auth_name"
-        }->encrypt_hex( $session_key );
-    } elsif ( lc $c{ DBI_encryptiontype } eq 'idea'     ) {
-        $CIPHERS{ "idea:$auth_name"      }
-           ||= Crypt::CBC->new( $secretkey, 'IDEA'     );
-        $encrypted_session_key = $CIPHERS{
-            "idea:$auth_name"
-        }->encrypt_hex( $session_key );
-    } elsif ( lc $c{ DBI_encryptiontype } eq 'blowfish' ) {
-        $CIPHERS{ "blowfish:$auth_name" }
-           ||= Crypt::CBC->new( $secretkey, 'Blowfish' );
-        $encrypted_session_key = $CIPHERS{
-            "blowfish:$auth_name"
-        }->encrypt_hex( $session_key );
-    }
-
+    my $encrypted_session_key = _encrypt_session_key ($session_key, $secretkey, $auth_name, $c{DBI_encryptiontype});
     return $encrypted_session_key;
 }
 
@@ -685,10 +720,10 @@ sub authen_ses_key
     my %c = _dbi_config_vars $r;
 
     # Get the secret key.
-    my $secretkey = $c{ DBI_secretkey };
-    unless ( defined $secretkey ) {
+    my $secret_key = $c{ DBI_secretkey };
+    if ( ! defined $secret_key ) {
         $r->log_error( "Apache2::AuthCookieDBI: didn't have the secret key from for auth realm $auth_name", $r->uri );
-        return undef;
+        return;
     }
     
     # Decrypt the session key.
@@ -697,62 +732,51 @@ sub authen_ses_key
         $session_key = $encrypted_session_key;
     } else {
         # Check that this looks like an encrypted hex-encoded string.
-        unless ( $encrypted_session_key =~ /^[0-9a-fA-F]+$/ ) {
+        if ( $encrypted_session_key !~ $HEX_STRING_REGEX ) {
             $r->log_error( "Apache2::AuthCookieDBI: encrypted session key $encrypted_session_key doesn't look like it's properly hex-encoded for auth realm $auth_name", $r->uri );
-            return undef;
+            return;
         }
 
-        # Get the cipher from the cache, or create a new one if the
-        # cached cipher hasn't been created, & decrypt the session key.
-        my $cipher;
-        if ( lc $c{ DBI_encryptiontype } eq 'des' ) {
-            $cipher = $CIPHERS{ "des:$auth_name" }
-               ||= Crypt::CBC->new( $secretkey, 'DES' );
-        } elsif ( lc $c{ DBI_encryptiontype } eq 'idea' ) {
-            $cipher = $CIPHERS{ "idea:$auth_name" }
-               ||= Crypt::CBC->new( $secretkey, 'IDEA' );
-        } elsif ( lc $c{ DBI_encryptiontype } eq 'blowfish' ) {
-            $cipher = $CIPHERS{ "blowfish:$auth_name" }
-               ||= Crypt::CBC->new( $secretkey, 'Blowfish' );
-        } elsif ( lc $c{ DBI_encryptiontype } eq 'blowfish_pp' ) {
-            $cipher = $CIPHERS{ "blowfish_pp:$auth_name" }
-               ||= Crypt::CBC->new( $secretkey, 'Blowfish_PP' );
-        } else {
+        my $cipher = _get_cipher_type( $c{ DBI_encryptiontype }, $auth_name,$secret_key );
+        if ( ! $cipher ) {
             $r->log_error( "Apache2::AuthCookieDBI: unknown encryption type $c{ DBI_encryptiontype } for auth realm $auth_name", $r->uri );
-            return undef;
+            return;
         }
         $session_key = $cipher->decrypt_hex( $encrypted_session_key );
     }
     
     # Break up the session key.
     my( $enc_user, $issue_time, $expire_time, $session_id,
-      $supplied_hash, @rest ) = split /:/, $session_key;
+      $supplied_hash, @rest ) = split $COLON_REGEX, $session_key;
 
     # Let's check that we got passed sensible values in the cookie.
-    unless ( $enc_user =~ /^[a-zA-Z0-9_\%]+$/ ) {
+    if ( $enc_user !~ $PERCENT_ENCODED_STRING_REGEX ) {
         $r->log_error( "Apache2::AuthCookieDBI: bad percent-encoded user $enc_user recovered from session ticket for auth_realm $auth_name", $r->uri );
-        return undef;
+        return;
     }
     # decode the user
     my $user = _percent_decode $enc_user;
-    $issue_time = '' unless defined $issue_time;
-    unless ( $issue_time =~ /^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$/ ) {
+    if ( ! defined $issue_time ) {
+        $issue_time = $EMPTY_STRING;
+    }
+
+    if ( $issue_time !~ $DATE_TIME_STRING_REGEX ) {
         $r->log_error( "Apache2::AuthCookieDBI: bad issue time $issue_time recovered from ticket for user $user for auth_realm $auth_name", $r->uri );
-        return undef;
+        return;
     }
-    unless ( $expire_time =~ /^\d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2}$/ ) {
+    if ( $expire_time !~ $DATE_TIME_STRING_REGEX ) {
         $r->log_error( "Apache2::AuthCookieDBI: bad expire time $expire_time recovered from ticket for user $user for auth_realm $auth_name", $r->uri );
-        return undef;
+        return;
     }
-    unless ( $supplied_hash =~ /^[0-9a-fA-F]{32}$/ ) {
+    if ( $supplied_hash !~ $THIRTY_TWO_CHARACTER_HEX_STRING_REGEX ) {
         $r->log_error( "Apache2::AuthCookieDBI: bad hash $supplied_hash recovered from ticket for user $user for auth_realm $auth_name", $r->uri );
-        return undef;
+        return;
     }
 
     # If we're using a session module, check that their session exist.
     if ( defined $c{ DBI_sessionmodule } ) {
         my %session;
-        my $dbh = _dbi_connect($r) || return undef;
+        my $dbh = _dbi_connect($r) || return;
 
         eval {
             tie %session, $c{ DBI_sessionmodule }, $session_id, +{
@@ -760,9 +784,9 @@ sub authen_ses_key
               LockHandle => $dbh,
             };
         };
-        if ( $@ ) {
+        if ( $EVAL_ERROR ) {
             $r->log_error( "Apache2::AuthCookieDBI: failed to tie session hash using session id $session_id for user $user for auth_realm $auth_name, error was $@", $r->uri );
-            return undef;
+            return;
         }
         # Update a timestamp at the top level to make sure we sync.
         $session{ timestamp } = _now_year_month_day_hour_minute_second;
@@ -772,20 +796,20 @@ sub authen_ses_key
     # Calculate the hash of the user, issue time, expire_time and
     # the secret key  and the session_id and then the hash of that
     # and the secret key again.
-    my $hash = md5_hex( join ':', $secretkey, md5_hex( join ':',
-      $enc_user, $issue_time, $expire_time, $session_id, @rest, $secretkey
+    my $hash = md5_hex( join q{:}, $secret_key, md5_hex( join q{:},
+      $enc_user, $issue_time, $expire_time, $session_id, @rest, $secret_key
     ) );
 
     # Compare it to the hash they gave us.
-    unless ( $hash eq $supplied_hash ) {
+    if ( $hash ne $supplied_hash ) {
         $r->log_error( "Apache2::AuthCookieDBI: hash in cookie did not match calculated hash of contents for user $user for auth realm $auth_name", $r->uri );
-        return undef;
+        return;
     }
 
     # Check that their session hasn't timed out.
     if ( _now_year_month_day_hour_minute_second gt $expire_time ) {
         $r->log_error( "Apache:AuthCookieDBI: expire time $expire_time has passed for user $user for auth realm $auth_name", $r->uri );
-        return undef;
+        return;
     }
 
     # If we're being paranoid about timing-out long-lived sessions,
@@ -802,10 +826,9 @@ sub authen_ses_key
 # Take a list of groups and make sure that the current remote user is a member
 # of one of them.
 
-sub group
-{
+sub group {
     my( $self, $r, $groups ) = @_;
-    my @groups = split(/\s+/o, $groups);
+    my @groups = split($WHITESPACE_REGEX, $groups);
 
     my $auth_name = $r->auth_name;
 
@@ -815,7 +838,7 @@ sub group
     my $user = $r->user;
 
     # See if we have a row in the groups table for this user/group.
-    my $dbh = _dbi_connect($r) || return undef;
+    my $dbh = _dbi_connect($r) || return;
 
     # Now loop through all the groups to see if we're a member of any:
     my $sth = $dbh->prepare_cached( <<"EOS" );
