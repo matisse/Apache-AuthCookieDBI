@@ -4,13 +4,25 @@ use FindBin qw($Bin);
 use lib "$Bin/mock_libs";
 use Crypt::CBC;
 
-use Test::More tests => 7;
+use Test::More tests => 8;
 use_ok('Apache2::AuthCookieDBI');
 
 test_defined_or_empty();
 test_encrypt_session_key();
+test_dir_config_var();
 
 exit;
+
+sub test_dir_config_var {
+    my $auth_name = 'testing_dir_config_var';
+    my $r = Apache2::RequestRec->new( auth_name => $auth_name );   # from mock_libs
+    my $variable_wanted = 'Arbitrary_Variable_Name';
+    my $expected        = $auth_name . $variable_wanted;
+    is( Apache2::AuthCookieDBI::_dir_config_var( $r, $variable_wanted ),
+        $expected,
+        '_dir_confif_var() passes correct args to $r->dir_config()' );
+    return 1;
+}
 
 sub test_defined_or_empty {
     my $user = 'matisse';
@@ -23,6 +35,7 @@ sub test_defined_or_empty {
         5,
         '_defined_or_empty returns expected number of items.'
     );
+    return 1;
 }
 
 sub test_encrypt_session_key {
@@ -44,7 +57,8 @@ sub test_encrypt_session_key {
         is(
             $mock_crypt_text,
             $expected->{$encryption_type},
-            '_encrypt_session_key ' . join( q{,}, @args )
+            "_encrypt_session_key() using $encryption_type"
         );
     }
+    return 1;
 }
