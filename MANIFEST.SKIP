@@ -1,0 +1,6 @@
+Makefile
+.*.bak
+.cvsignore
+.project
+blib*
+CVS/*

@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.41 2007/02/03 21:59:15 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.42 2007/02/04 19:45:10 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -51,7 +51,7 @@ use Date::Calc qw( Today_and_Now Add_Delta_DHMS );
 use English qw(-no_match_vars);
 
 #===============================================================================
-# P A C K A G E   G L O B A L S
+# FILE (LEXICAL)  G L O B A L S
 #===============================================================================
 
 my %CIPHERS = ();
@@ -61,13 +61,13 @@ my %CIPHERS = ();
 
 my $EMPTY_STRING = q{};
 
-my $WHITESPACE_REGEX                      = qr/ \s+ /x;
-my $HEX_STRING_REGEX                      = qr/ \A [0-9a-fA-F] \z /x;
-my $THIRTY_TWO_CHARACTER_HEX_STRING_REGEX = qr/  \A [0-9a-fA-F]{32} \z /x;
-my $DATE_TIME_STRING_REGEX = qr/ \A \d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2} \z /x;
-my $PERCENT_ENCODED_STRING_REGEX = qr/ \A [a-zA-Z0-9_\%]+ \z /x;
-my $COLON_REGEX                  = qr/ : /x;
-my $HYPHEN_REGEX                 = qr/ - /x;
+my $WHITESPACE_REGEX                      = qr/ \s+ /mx;
+my $HEX_STRING_REGEX                      = qr/ \A [0-9a-fA-F] \z /mx;
+my $THIRTY_TWO_CHARACTER_HEX_STRING_REGEX = qr/  \A [0-9a-fA-F]{32} \z /mx;
+my $DATE_TIME_STRING_REGEX = qr/ \A \d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2} \z /mx;
+my $PERCENT_ENCODED_STRING_REGEX = qr/ \A [a-zA-Z0-9_\%]+ \z /mx;
+my $COLON_REGEX                  = qr/ : /mx;
+my $HYPHEN_REGEX                 = qr/ - /mx;
 
 #===============================================================================
 # P E R L D O C
@@ -275,10 +275,45 @@ sub _dir_config_var {
 # had errors or a hash of the values if they were all OK.  Takes a request
 # object.
 
+my %CONFIG_DEFAULT = (
+    DBI_DSN             => undef,
+    DBI_SecretKey       => undef,
+    DBI_User            => undef,
+    DBI_Password        => undef,
+    DBI_UsersTable      => 'users',
+    DBI_UserField       => 'user',
+    DBI_passwordfield   => 'password',
+    DBI_crypttype       => 'none',
+    DBI_groupstable     => 'groups',
+    DBI_groupfield      => 'grp',
+    DBI_groupuserfield  => 'user',
+    DBI_encryptiontype  => 'none',
+    DBI_sessionlifetime => '00-24-00-00',
+    DBI_sessionmodule   => 'none',
+);
+
 sub _dbi_config_vars {
     my ($r) = @_;
 
     my %c;    # config variables hash
+    foreach my $variable ( keys %CONFIG_DEFAULT ) {
+        my $value_from_config = _dir_config_var( $r, $variable );
+        $c{$variable} =
+          defined $value_from_config
+          ? $value_from_config
+          : $CONFIG_DEFAULT{$variable};
+        if ( !defined $c{$variable} ) {
+            _log_not_set( $r, $variable );
+        }
+    }
+
+    # If we used encryption we need to pull in Crypt::CBC.
+    if ( $c{DBI_encryptiontype} ne 'none' ) {
+        require Crypt::CBC;
+    }
+
+    return %c;
+}
 
 =head1 APACHE CONFIGURATION DIRECTIVES
 
@@ -301,13 +336,6 @@ AuthName.  The available configuration directives are as follows:
 Specifies the DSN for DBI for the database you wish to connect to retrieve
 user information.  This is required and has no default value.
 
-=cut
-
-    if ( $c{DBI_DSN} ne _dir_config_var $r, 'DBI_DSN' ) {
-        _log_not_set $r, 'DBI_DSN';
-        return;
-    }
-
 =item C<WhateverDBI_SecretKey>
 
 Specifies the secret key for this auth scheme.  This should be a long
@@ -325,22 +353,11 @@ world-readable. Also, make sure that the Perl environment variables are
 not publically available, for example via the /perl-status handler.)
 See also L</"COMPATIBILITY"> in this man page.
 
-=cut                
-
-    if ( $c{DBI_secretkey} ne _dir_config_var $r, 'DBI_SecretKey' ) {
-        _log_not_set $r, 'DBI_SecretKey';
-        return;
-    }
 
 =item C<WhatEverDBI_User>
 
 The user to log into the database as.  This is not required and
 defaults to undef.
-
-=cut
-
-    $c{DBI_user} = _dir_config_var( $r, 'DBI_User' )
-      || undef;
 
 =item C<WhatEverDBI_Password>
 
@@ -351,80 +368,40 @@ Make sure that the Perl environment variables are
 not publically available, for example via the /perl-status handler since the
 password could be exposed.
 
-=cut
-
-    $c{DBI_password} = _dir_config_var( $r, 'DBI_Password' )
-      || undef;
-
 =item C<WhatEverDBI_UsersTable>
 
 The table that user names and passwords are stored in.  This is not
 required and defaults to 'users'.
-
-=cut
-
-    $c{DBI_userstable} = _dir_config_var( $r, 'DBI_UsersTable' )
-      || 'users';
 
 =item C<WhatEverDBI_UserField>
 
 The field in the above table that has the user name.  This is not
 required and defaults to 'user'.
 
-=cut
-
-    $c{DBI_userfield} = _dir_config_var( $r, 'DBI_UserField' )
-      || 'user';
-
 =item C<WhatEverDBI_PasswordField>
 
 The field in the above table that has the password.  This is not
 required and defaults to 'password'.
-
-=cut
-
-    $c{DBI_passwordfield} = _dir_config_var( $r, 'DBI_PasswordField' )
-      || 'password';
 
 =item C<WhatEverDBI_CryptType>
 
 What kind of hashing is used on the password field in the database.  This can
 be 'none', 'crypt', or 'md5'.  This is not required and defaults to 'none'.
 
-=cut
-
-    $c{DBI_crypttype} = _dir_config_var( $r, 'DBI_CryptType' )
-      || 'none';
-
 =item C<WhatEverDBI_GroupsTable>
 
 The table that has the user / group information.  This is not required and
 defaults to 'groups'.
-
-=cut
-
-    $c{DBI_groupstable} = _dir_config_var( $r, 'DBI_GroupsTable' )
-      || 'groups';
 
 =item C<WhatEverDBI_GroupField>
 
 The field in the above table that has the group name.  This is not required
 and defaults to 'grp' (to prevent conflicts with the SQL reserved word 'group').
 
-=cut
-
-    $c{DBI_groupfield} = _dir_config_var( $r, 'DBI_GroupField' )
-      || 'grp';
-
 =item C<WhatEverDBI_GroupUserField>
 
 The field in the above table that has the user name.  This is not required
 and defaults to 'user'.
-
-=cut
-
-    $c{DBI_groupuserfield} = _dir_config_var( $r, 'DBI_GroupUserField' )
-      || 'user';
 
 =item C<WhatEverDBI_EncryptionType>
 
@@ -435,16 +412,6 @@ protection of the password in transport; use SSL for that.  It can be 'none',
 'des', 'idea', 'blowfish', or 'blowfish_pp'.
 
 This is not required and defaults to 'none'.
-
-=cut
-
-    $c{DBI_encryptiontype} = _dir_config_var( $r, 'DBI_EncryptionType' )
-      || 'none';
-
-    # If we used encryption we need to pull in Crypt::CBC.
-    if ( $c{DBI_encryptiontype} ne 'none' ) {
-        require Crypt::CBC;
-    }
 
 =item C<WhatEverDBI_SessionLifetime>
 
@@ -457,11 +424,6 @@ this value.  This can be 'forever' or a life time specified as:
     DD-hh-mm-ss -- Days, hours, minute and seconds to live.
 
 This is not required and defaults to '00-24-00-00' or 24 hours.
-
-=cut
-
-    $c{DBI_sessionlifetime} = _dir_config_var( $r, 'DBI_SessionLifetime' )
-      || '00-24-00-00';
 
 =item C<WhatEverDBI_SessionModule>
 
@@ -485,17 +447,27 @@ be created.
 
 =cut
 
-    $c{DBI_sessionmodule} = _dir_config_var( $r, 'DBI_SessionModule' );
-
-    return %c;
-}
-
 #-------------------------------------------------------------------------------
 # _now_year_month_day_hour_minute_second -- Return a string with the time in
 # this order separated by dashes.
 
 sub _now_year_month_day_hour_minute_second {
     return sprintf '%04d-%02d-%02d-%02d-%02d-%02d', Today_and_Now;
+}
+
+sub _check_password {
+    my $password         = shift;
+    my $crypted_password = shift;
+    my $crypt_type       = shift;
+    my %password_checker = (
+        none => sub { return $password eq $crypted_password; },
+        'crypt' => sub {
+            my $salt = substr $crypted_password, 0, 2;
+            return crypt( $password, $salt ) eq $crypted_password;
+        },
+        md5 => sub { return md5_hex($password) eq $crypted_password; },
+    );
+    return $password_checker{$crypt_type}->();
 }
 
 #-------------------------------------------------------------------------------
@@ -574,6 +546,26 @@ EOS
     }
 }
 
+sub _get_new_session {
+    my $r              = shift;
+    my $user           = shift;
+    my $auth_name      = shift;
+    my $session_module = shift;
+    my $extra_data     = shift;
+
+    my $dbh = _dbi_connect($r);
+    my %session;
+    tie %session, $session_module, undef,
+      +{
+        Handle     => $dbh,
+        LockHandle => $dbh,
+      };
+
+    $session{user}       = $user;
+    $session{extra_data} = $extra_data;
+    return \%session;
+}
+
 # Takes a list and returns a list of the same size.
 # Any element in the inputs that is defined is returned unchanged. Elements that
 # were undef are returned as empty strings.
@@ -648,79 +640,36 @@ sub authen_cred {
     }
 
     # get the configuration information.
-    my %c = _dbi_config_vars $r;
+    my %c = _dbi_config_vars($r);
 
     # get the crypted password from the users database for this user.
     my $crypted_password = _get_crypted_password( $r, $user, \%c );
 
     # now return unless the passwords match.
-    if ( lc $c{DBI_crypttype} eq 'none' ) {
-        if ( $password ne $crypted_password ) {
-            $r->log_error(
-"Apache2::AuthCookieDBI: plaintext passwords didn't match for user $user for auth realm $auth_name",
-                $r->uri
-            );
-            return;
-        }
-    }
-    elsif ( lc $c{DBI_crypttype} eq 'crypt' ) {
-        my $salt = substr $crypted_password, 0, 2;
-        if ( crypt( $password, $salt ) ne $crypted_password ) {
-            $r->log_error(
-"Apache2::AuthCookieDBI: crypted passwords didn't match for user $user for auth realm $auth_name",
-                $r->uri
-            );
-            return;
-        }
-    }
-    elsif ( lc $c{DBI_crypttype} eq 'md5' ) {
-        if ( md5_hex($password) ne $crypted_password ) {
-            $r->log_error(
-"Apache2::AuthCookieDBI: MD5 passwords didn't match for user $user for auth realm $auth_name",
-                $r->uri
-            );
-            return;
-        }
+    my $crypt_type = lc $c{DBI_crypttype};
+    if ( !_check_password( $password, $crypted_password, $crypt_type ) ) {
+        $r->log_error(
+"Apache2::AuthCookieDBI: $crypt_type passwords didn't match for user $user for auth realm $auth_name",
+            $r->uri
+        );
+        return;
     }
 
     # Create the expire time for the ticket.
-    my $expire_time;
-
-    # expire time in a zillion years if it's forever.
-    if ( lc $c{DBI_sessionlifetime} eq 'forever' ) {
-        $expire_time = '9999-01-01-01-01-01';
-    }
-    else {
-        my ( $deltaday, $deltahour, $deltaminute, $deltasecond ) =
-          split $HYPHEN_REGEX, $c{DBI_sessionlifetime};
-
-        # Figure out the expire time.
-        $expire_time = sprintf(
-            '%04d-%02d-%02d-%02d-%02d-%02d',
-            Add_Delta_DHMS( Today_and_Now, $deltaday, $deltahour,
-                $deltaminute, $deltasecond
-            )
-        );
-    }
+    my $expire_time = _get_expire_time( $c{DBI_sessionlifetime} );
 
     # Now we need to %-encode non-alphanumberics in the username so we
     # can stick it in the cookie safely.
-    my $enc_user = _percent_encode $user;
+    my $enc_user = _percent_encode($user);
 
     # If we are using sessions, we create a new session for this login.
     my $session_id = $EMPTY_STRING;
-    if ( defined $c{DBI_sessionmodule} ) {
-        my $dbh = _dbi_connect($r);
-        my %session;
-        tie %session, $c{DBI_sessionmodule}, undef,
-          +{
-            Handle     => $dbh,
-            LockHandle => $dbh,
-          };
-        $session_id = $session{_session_id};
-        $r->pnotes( $auth_name, \%session );
-        $session{user}       = $user;
-        $session{extra_data} = \@extra_data;
+    if ( $c{DBI_sessionmodule} ne 'none' ) {
+        my $session =
+          _get_new_session( $r, $user, $auth_name, $c{DBI_sessionmodule},
+            \@extra_data );
+        $r->pnotes( $auth_name, $session );
+        $session_id = $session->{_session_id};
     }
 
     # OK, now we stick the username and the current time and the expire
@@ -732,7 +681,7 @@ sub authen_cred {
 
     # Now we calculate the hash of this and the secret key and then
     # calculate the hash of *that* and the secret key again.
-    my $secretkey = $c{DBI_secretkey};
+    my $secretkey = $c{DBI_SecretKey};
     if ( !defined $secretkey ) {
         $r->log_error(
 "Apache2::AuthCookieDBI: didn't have the secret key for auth realm $auth_name",
@@ -763,10 +712,10 @@ sub authen_ses_key {
     my $auth_name = $r->auth_name;
 
     # Get the configuration information.
-    my %c = _dbi_config_vars $r;
+    my %c = _dbi_config_vars($r);
 
     # Get the secret key.
-    my $secret_key = $c{DBI_secretkey};
+    my $secret_key = $c{DBI_SecretKey};
     if ( !defined $secret_key ) {
         $r->log_error(
 "Apache2::AuthCookieDBI: didn't have the secret key from for auth realm $auth_name",
@@ -806,31 +755,32 @@ sub authen_ses_key {
     # Break up the session key.
     my (
         $enc_user,   $issue_time,    $expire_time,
-        $session_id, $supplied_hash, @rest
+        $session_id, $hashed_string, @rest
     ) = split $COLON_REGEX, $session_key;
 
     # Let's check that we got passed sensible values in the cookie.
+    ($enc_user) = _defined_or_empty($enc_user);
     if ( $enc_user !~ $PERCENT_ENCODED_STRING_REGEX ) {
         $r->log_error(
-"Apache2::AuthCookieDBI: bad percent-encoded user $enc_user recovered from session ticket for auth_realm $auth_name",
+"Apache2::AuthCookieDBI: bad percent-encoded user '$enc_user' recovered from session ticket for auth_realm '$auth_name'",
             $r->uri
         );
         return;
     }
 
     # decode the user
-    my $user = _percent_decode $enc_user;
-    if ( !defined $issue_time ) {
-        $issue_time = $EMPTY_STRING;
-    }
+    my $user = _percent_decode($enc_user);
 
+    ($issue_time) = _defined_or_empty($issue_time);
     if ( $issue_time !~ $DATE_TIME_STRING_REGEX ) {
         $r->log_error(
-"Apache2::AuthCookieDBI: bad issue time $issue_time recovered from ticket for user $user for auth_realm $auth_name",
+"Apache2::AuthCookieDBI: bad issue time '$issue_time' recovered from ticket for user $user for auth_realm $auth_name",
             $r->uri
         );
         return;
     }
+    
+    ($expire_time) = _defined_or_empty($expire_time);
     if ( $expire_time !~ $DATE_TIME_STRING_REGEX ) {
         $r->log_error(
 "Apache2::AuthCookieDBI: bad expire time $expire_time recovered from ticket for user $user for auth_realm $auth_name",
@@ -838,16 +788,16 @@ sub authen_ses_key {
         );
         return;
     }
-    if ( $supplied_hash !~ $THIRTY_TWO_CHARACTER_HEX_STRING_REGEX ) {
+    if ( $hashed_string !~ $THIRTY_TWO_CHARACTER_HEX_STRING_REGEX ) {
         $r->log_error(
-"Apache2::AuthCookieDBI: bad hash $supplied_hash recovered from ticket for user $user for auth_realm $auth_name",
+"Apache2::AuthCookieDBI: bad encrypted session_key $hashed_string recovered from ticket for user $user for auth_realm $auth_name",
             $r->uri
         );
         return;
     }
 
     # If we're using a session module, check that their session exist.
-    if ( defined $c{DBI_sessionmodule} ) {
+    if ( $c{DBI_sessionmodule} ne 'none' ) {
         my %session;
         my $dbh = _dbi_connect($r) || return;
 
@@ -874,7 +824,7 @@ sub authen_ses_key {
     # Calculate the hash of the user, issue time, expire_time and
     # the secret key  and the session_id and then the hash of that
     # and the secret key again.
-    my $hash = md5_hex(
+    my $new_hash = md5_hex(
         join q{:},
         $secret_key,
         md5_hex(
@@ -884,9 +834,9 @@ sub authen_ses_key {
     );
 
     # Compare it to the hash they gave us.
-    if ( $hash ne $supplied_hash ) {
+    if ( $new_hash ne $hashed_string ) {
         $r->log_error(
-"Apache2::AuthCookieDBI: hash in cookie did not match calculated hash of contents for user $user for auth realm $auth_name",
+"Apache2::AuthCookieDBI: hash '$hashed_string' in cookie did not match calculated hash '$new_hash' of contents for user $user for auth realm $auth_name",
             $r->uri
         );
         return;
@@ -945,6 +895,32 @@ EOS
         $r->uri
     );
     return Apache2::Const::HTTP_FORBIDDEN;
+}
+
+sub _get_expire_time {
+    my $session_lifetime = shift;
+    $session_lifetime = lc $session_lifetime;
+
+    my $expire_time = $EMPTY_STRING;
+
+    if ( $session_lifetime eq 'forever' ) {
+        $expire_time =
+          '9999-01-01-01-01-01'
+          ,    # expire time in a zillion years if it's forever.
+          return $expire_time;
+    }
+
+    my ( $deltaday, $deltahour, $deltaminute, $deltasecond ) =
+      split $HYPHEN_REGEX, $session_lifetime;
+
+    # Figure out the expire time.
+    $expire_time = sprintf(
+        '%04d-%02d-%02d-%02d-%02d-%02d',
+        Add_Delta_DHMS( Today_and_Now, $deltaday, $deltahour,
+            $deltaminute, $deltasecond
+        )
+    );
+    return $expire_time;
 }
 
 1;

@@ -8,6 +8,7 @@ sub new {
     my ($class, %args ) = @_;
     my $self = \%args;
     bless $self, $class;
+    $self->{_error_messages} = [];
     return $self;
 }
 
@@ -16,12 +17,23 @@ sub auth_name {
     return $self->{auth_name};
 }
 
-# The real dir_config() returns the *value* of the requested variable.
-# This test version just returns the name of the requetsed variable,
-# so we can test if the right one is requested.
 sub dir_config {
     my ($self,$name_of_requested_variable) = @_;
-    return $name_of_requested_variable;
+    my $mock_config = $self->{mock_config};
+    return $mock_config->{$name_of_requested_variable};
+}
+
+sub log_error {
+    my ($self, @args) = @_;
+    if (@args) {
+        my $message = join("\t", @args);
+        push @{ $self->{_error_messages} }, $message;
+    }
+    return $self->{_error_messages};
+}
+
+sub uri {
+    return 'test_uri';
 }
 
 1;

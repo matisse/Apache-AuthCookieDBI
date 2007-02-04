@@ -1,14 +1,24 @@
-AuthCookieDBI.pm
 Changes
-MANIFEST
-README
 LICENSE
+MANIFEST
+MANIFEST.SKIP
+META.yml			Module meta-data (added by MakeMaker)
 Makefile.PL
-test.pl
-generic_reg_auth_scheme.txt
-techspec.txt
-schema.sql
-eg/html/login.html
+README
 eg/html/login-failed.html
+eg/html/login.html
 eg/public-pl/login.pl
-META.yml                                Module meta-data (added by MakeMaker)
+generic_reg_auth_scheme.txt
+lib/Apache2/AuthCookieDBI.pm
+schema.sql
+t/basic.t
+t/mock_libs/Apache/DBI.pm
+t/mock_libs/Apache2/AuthCookie.pm
+t/mock_libs/Apache2/Const.pm
+t/mock_libs/Apache2/RequestRec.pm
+t/mock_libs/Apache2/ServerUtil.pm
+t/mock_libs/Crypt/CBC.pm
+t/mock_libs/DBI.pm
+t/mock_libs/Digest/MD5.pm
+t/utils.t
+techspec.txt
