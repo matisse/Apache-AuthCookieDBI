@@ -61,13 +61,14 @@ sub test_authen_ses_key {
         $auth_name . 'DBI_sessionmodule' => 'none',
     };
     my $r           = set_up( $auth_name, $mock_config );
-    my $user        = 'matisse';
+    my $expected_user        = 'expected_username';
     my $issue_time  = '2006-02-04-10-34-23';
     my $expire_time = '9999-02-04-10-45-00';
     my $session_id  = 'test_session_id';
+    my $extra_session_info = 'extra:info';
     my $hashed_string = 'bad-key-stored-in-ticket';   # not a 32 char hex string
     my $encrypted_session_key = join( q{:},
-        $user, $issue_time, $expire_time, $session_id, $hashed_string );
+        $expected_user, $issue_time, $expire_time, $session_id, $hashed_string );
 
     Apache2::AuthCookieDBI->authen_ses_key( $r, $encrypted_session_key );
     like(
@@ -78,19 +79,22 @@ sub test_authen_ses_key {
 
     $r = set_up( $auth_name, $mock_config );
 
-    my $plaintext_key = join( q{:},
-        $user,       $issue_time, $expire_time,
-        $session_id, 'extra arg', $secret_key );
+    my $seperator = q{:};
+    my $public_part = join($seperator ,
+        $expected_user,       $issue_time, $expire_time,
+        $session_id, $extra_session_info);
+        
+    my $plaintext_key = join( $seperator, $public_part, $secret_key );
 
     my $md5_hash = md5_hex($plaintext_key);
 
-    $hashed_string = md5_hex( join( q{:}, $secret_key, $md5_hash ) );
-    $encrypted_session_key = join( q{:},
-        $user, $issue_time, $expire_time, $session_id, $hashed_string );
+    $hashed_string = md5_hex( join( $seperator, $secret_key, $md5_hash ) );
+
+    $encrypted_session_key = join( q{:}, $public_part, $hashed_string );
 
     my $got_user =
       Apache2::AuthCookieDBI->authen_ses_key( $r, $encrypted_session_key );
-    is( $got_user, $user, 'authen_ses_key() on plaintext key' )
+    is( $got_user, $expected_user, 'authen_ses_key() on plaintext key' )
       || diag join( "\n", @{ $r->log_error() } );
     return 1;
 }

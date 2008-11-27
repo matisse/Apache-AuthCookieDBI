@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.42 2007/02/04 19:45:10 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.43 2008/11/27 19:34:43 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -34,7 +34,7 @@ use strict;
 use warnings;
 use 5.004;
 use vars qw( $VERSION );
-$VERSION = '2.10';
+$VERSION = '2.11';
 
 use Apache2::AuthCookie;
 use base qw( Apache2::AuthCookie );
@@ -755,8 +755,9 @@ sub authen_ses_key {
     # Break up the session key.
     my (
         $enc_user,   $issue_time,    $expire_time,
-        $session_id, $hashed_string, @rest
+        $session_id, @rest
     ) = split $COLON_REGEX, $session_key;
+    my $hashed_string = pop @rest;
 
     # Let's check that we got passed sensible values in the cookie.
     ($enc_user) = _defined_or_empty($enc_user);
@@ -984,6 +985,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
   Original Author: Jacob Davies
   Incomplete list of additional contributors (alphabetical by first name):
+    Carl Gustafsson
     Jay Strauss
     Lance P Cleveland
     Matisse Enzer

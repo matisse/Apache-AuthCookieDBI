@@ -1,4 +1,4 @@
-# $Header: /Users/matisse/Desktop/CVS2GIT/matisse.net.cvs/Apache-AuthCookieDBI/Attic/Makefile.PL,v 1.5 2007/02/04 19:45:10 matisse Exp $
+# $Header: /Users/matisse/Desktop/CVS2GIT/matisse.net.cvs/Apache-AuthCookieDBI/Attic/Makefile.PL,v 1.6 2008/11/27 19:34:43 matisse Exp $
 use strict;
 use warnings;
 
@@ -10,6 +10,7 @@ WriteMakefile(
     NAME => 'Apache2::AuthCookieDBI',
 
     #'VERSION_FROM' => 'AuthCookieDBI.pm', # finds $VERSION
+    VERSION => '2.04_2',
     PREREQ_PM => {
         'mod_perl2'           => '1.999022',
         'Apache2::AuthCookie' => '3.08',

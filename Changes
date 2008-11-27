@@ -1,5 +1,21 @@
 Revision history for Perl extension Apache::AuthCookieDBI.
 
+2.04 - Wed Nov 26 13:07:03 PST 2008
+       Incorporated bug fix for authen_ses_key() provided by
+       Carl Gustafsson. authen_ses_key() was not properly handling
+       any extra_session_info - the fix is to get $hashed_string with
+          my $hashed_string = pop @rest;
+
+       Also releasing the work done between April 26, 2005 and February 4, 2007,
+       plus bug fix for authen_ses_key
+       - Added basic framework for unit tests.
+       - Factored out some of the DBI code into new methods:
+         - _dbi_connect()
+         - _get_crypted_password()
+       - Changes to satisfy Perl::Critic, e.g.
+         - Removed function prototypes (they are ignored for methods.)
+         - Cleaned up regular expressions: use /x, etc.
+
 2.03 - Mon Apr 25 10:01:04 PDT 2005
        Incorporated Lance P Cleveland's changes porting module to mod_perl 1.999_22
        (That is, Version 2.0.0-RC5 - April 14, 2005)
