@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.43 2008/11/27 19:34:43 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.44 2008/11/28 23:44:31 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -963,7 +963,7 @@ A minimal CREATE TABLE statement might look like:
 
  Copyright (C) 2002 SF Interactive.
  Copyright (C) 2003-2004 Jacob Davies
- Copyright (C) 2004-2005 Matisse Enzer
+ Copyright (C) 2004-2008 Matisse Enzer
 
 =head1 LICENSE
 
@@ -996,7 +996,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
 Matisse Enzer
 
-        <matisse@spamcop.net>
+        <matisse@cpan.org>
         
 =head1 SEE ALSO
 
