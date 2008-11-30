@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.45 2008/11/30 17:48:06 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.46 2008/11/30 18:05:16 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -9,7 +9,7 @@
 # See end of this file for Copyright notices.
 #
 # Author:  Jacob Davies <jacob@well.com>
-# Maintainer: Matisse Enzer <matisse@matisse.net> (as of version 2.0)
+# Maintainer: Matisse Enzer <matisse@cpan.org> (as of version 2.0)
 #
 #
 # This library is free software; you can redistribute it and/or
@@ -210,10 +210,9 @@ sub _get_cipher_type {
         },
     );
     my $code_ref = $cipher_type{$lc_encryption_type}
-        || Carp::confess(
-        "Unsupported encryption type: '$dbi_encryption_type'");
+        || Carp::confess("Unsupported encryption type: '$dbi_encryption_type'");
     my $cbc_object = $code_ref->();
-    
+
     # Cache the object. Caught bug where we were not, thanks to unit tests.
     $CIPHERS{"$lc_encryption_type:$auth_name"} = $cbc_object;
 
@@ -299,7 +298,7 @@ my %CONFIG_DEFAULT = (
 );
 
 sub _dbi_config_vars {
-    my ($r) = @_;
+    my ( $self, $r ) = @_;
 
     my %c;    # config variables hash
     foreach my $variable ( keys %CONFIG_DEFAULT ) {
@@ -717,7 +716,7 @@ sub authen_ses_key {
     my $auth_name = $r->auth_name;
 
     # Get the configuration information.
-    my %c = _dbi_config_vars($r);
+    my %c = $self->_dbi_config_vars($r);
 
     # Get the secret key.
     my $secret_key = $c{DBI_SecretKey};
@@ -729,33 +728,9 @@ sub authen_ses_key {
         return;
     }
 
-    # Decrypt the session key.
-    my $session_key;
-    if ( $c{DBI_encryptiontype} eq 'none' ) {
-        $session_key = $encrypted_session_key;
-    }
-    else {
-
-        # Check that this looks like an encrypted hex-encoded string.
-        if ( $encrypted_session_key !~ $HEX_STRING_REGEX ) {
-            $r->log_error(
-                "Apache2::AuthCookieDBI: encrypted session key $encrypted_session_key doesn't look like it's properly hex-encoded for auth realm $auth_name",
-                $r->uri
-            );
-            return;
-        }
-
-        my $cipher = _get_cipher_type( $c{DBI_encryptiontype}, $auth_name,
-            $secret_key );
-        if ( !$cipher ) {
-            $r->log_error(
-                "Apache2::AuthCookieDBI: unknown encryption type $c{ DBI_encryptiontype } for auth realm $auth_name",
-                $r->uri
-            );
-            return;
-        }
-        $session_key = $cipher->decrypt_hex($encrypted_session_key);
-    }
+    my $session_key = $self->decrypt_session_key( $r, $c{'DBI_encryptiontype'},
+        $encrypted_session_key, $secret_key )
+        || return;
 
     # Break up the session key.
     my ( $enc_user, $issue_time, $expire_time, $session_id, @rest )
@@ -865,6 +840,39 @@ sub authen_ses_key {
     return $user;
 }
 
+sub decrypt_session_key {
+    my ( $self, $r, $encryptiontype, $encrypted_session_key, $secret_key ) = @_;
+
+    if ( $encryptiontype eq 'none' ) {
+        return $encrypted_session_key;
+    }
+
+    my $auth_name = $r->auth_name;
+
+    my $session_key;
+
+    # Check that this looks like an encrypted hex-encoded string.
+    if ( $encrypted_session_key !~ $HEX_STRING_REGEX ) {
+        $r->log_error(
+            "Apache2::AuthCookieDBI: encrypted session key '$encrypted_session_key' doesn't look like it's properly hex-encoded for auth realm $auth_name",
+            $r->uri
+        );
+        return;
+    }
+
+    my $cipher
+        = _get_cipher_type( $encryptiontype, $auth_name, $secret_key );
+    if ( !$cipher ) {
+        $r->log_error(
+            "Apache2::AuthCookieDBI: unknown encryption type '$encryptiontype' for auth realm $auth_name",
+            $r->uri
+        );
+        return;
+    }
+    $session_key = $cipher->decrypt_hex($encrypted_session_key);
+    return $session_key;
+}
+
 #-------------------------------------------------------------------------------
 # Take a list of groups and make sure that the current remote user is a member
 # of one of them.
@@ -876,7 +884,7 @@ sub group {
     my $auth_name = $r->auth_name;
 
     # Get the configuration information.
-    my %c = _dbi_config_vars $r;
+    my %c = $self->_dbi_config_vars($r);
 
     my $user = $r->user;
 
@@ -1011,9 +1019,11 @@ Apache2::Session(1)
 
 =over 2
 
-=item Add a proper set of regression tests!!! Easier said than done though.
+=item Improve test coverage.
 
 =item Refactor authen_cred() and authen_ses_key() into several smaller private methods.
+
+=item Refactor documentation.
 
 =back
 
