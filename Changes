@@ -1,5 +1,9 @@
 Revision history for Perl extension Apache2::AuthCookieDBI.
 
+2.05 - NOT YET RELEASED
+       Fixed bug in _get_cipher_type() where it was not memoizing the
+       Crypt::CBC objects.
+       
 2.04 - Fri Nov 28 15:41:33 PST 2008
        Incorporated bug fix for authen_ses_key() provided by
        Carl Gustafsson. authen_ses_key() was not properly handling
