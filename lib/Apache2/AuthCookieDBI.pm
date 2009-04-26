@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.47 2009/04/26 17:32:37 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.48 2009/04/26 17:33:26 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -260,8 +260,8 @@ sub _log_not_set {
     my ( $r, $variable ) = @_;
     my $auth_name = $r->auth_name;
     return $r->log_error(
-        "Apache2::AuthCookieDBI: $variable not set for auth realm $auth_name", $r->uri
-    );
+        "Apache2::AuthCookieDBI: $variable not set for auth realm $auth_name",
+        $r->uri );
 }
 
 #-------------------------------------------------------------------------------
@@ -297,7 +297,7 @@ my %CONFIG_DEFAULT = (
 );
 
 sub _dbi_config_vars {
-    my ( $r ) = @_;
+    my ($r) = @_;
 
     my %c;    # config variables hash
     foreach my $variable ( keys %CONFIG_DEFAULT ) {
@@ -504,8 +504,8 @@ sub _dbi_connect {
     my %c = _dbi_config_vars $r;
 
     # get the crypted password from the users database for this user.
-    my $dbh
-        = DBI->connect_cached( $c{'DBI_DSN'}, $c{'DBI_User'}, $c{'DBI_Password'} );
+    my $dbh = DBI->connect_cached( $c{'DBI_DSN'}, $c{'DBI_User'},
+        $c{'DBI_Password'} );
     if ( defined $dbh ) {
         return $dbh;
     }
@@ -623,7 +623,7 @@ sub extra_session_info {
 
 sub authen_cred {
     my ( $class, $r,        @credentials ) = @_;
-    my ( $user, $password, @extra_data )  = @credentials;
+    my ( $user,  $password, @extra_data )  = @credentials;
     my $auth_name = $r->auth_name;
     ( $user, $password ) = _defined_or_empty( $user, $password );
 
@@ -786,7 +786,7 @@ sub authen_ses_key {
                 LockHandle => $dbh,
                 };
         };
-        if ( (! $tie_result) || $EVAL_ERROR) {
+        if ( ( !$tie_result ) || $EVAL_ERROR ) {
             $r->log_error(
                 "Apache2::AuthCookieDBI: failed to tie session hash using session id $session_id for user $user for auth_realm $auth_name, error was $@",
                 $r->uri
@@ -840,7 +840,8 @@ sub authen_ses_key {
 }
 
 sub decrypt_session_key {
-    my ( $class, $r, $encryptiontype, $encrypted_session_key, $secret_key ) = @_;
+    my ( $class, $r, $encryptiontype, $encrypted_session_key, $secret_key )
+        = @_;
 
     if ( $encryptiontype eq 'none' ) {
         return $encrypted_session_key;
@@ -859,8 +860,7 @@ sub decrypt_session_key {
         return;
     }
 
-    my $cipher
-        = _get_cipher_type( $encryptiontype, $auth_name, $secret_key );
+    my $cipher = _get_cipher_type( $encryptiontype, $auth_name, $secret_key );
     if ( !$cipher ) {
         $r->log_error(
             "Apache2::AuthCookieDBI: unknown encryption type '$encryptiontype' for auth realm $auth_name",
@@ -916,8 +916,9 @@ sub _get_expire_time {
 
     if ( $session_lifetime eq 'forever' ) {
         $expire_time = '9999-01-01-01-01-01';
-         # expire time in a zillion years if it's forever.
-         return $expire_time;
+
+        # expire time in a zillion years if it's forever.
+        return $expire_time;
     }
 
     my ( $deltaday, $deltahour, $deltaminute, $deltasecond )

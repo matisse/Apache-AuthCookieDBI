@@ -161,7 +161,7 @@ sub test_get_cipher_type {
         {   dbi_encryption_type  => 'blowfish_pp',
             expected_cipher_type => 'Blowfish_PP',
         },
-        {   dbi_encryption_type  => 'BLOWFISH_PP', # verify case-insensitive
+        {   dbi_encryption_type  => 'BLOWFISH_PP',    # verify case-insensitive
             expected_cipher_type => 'Blowfish_PP',
         },
     );
@@ -202,28 +202,31 @@ sub test_get_cipher_type {
 }
 
 sub test__dbi_connect {
-    my $auth_name   = 'testing__dbi_connect';
+    my $auth_name = 'testing__dbi_connect';
 
     my %mock_config = (
-        "${auth_name}DBI_DSN"             => 'test DBI_DSN',
-        "${auth_name}DBI_User"            => 'test DBI_User',
-        "${auth_name}DBI_Password"        => 'test DBI_Password',
-        "${auth_name}DBI_SecretKey"       => 'test DBI_SecretKey',
+        "${auth_name}DBI_DSN"       => 'test DBI_DSN',
+        "${auth_name}DBI_User"      => 'test DBI_User',
+        "${auth_name}DBI_Password"  => 'test DBI_Password',
+        "${auth_name}DBI_SecretKey" => 'test DBI_SecretKey',
     );
     my $r = set_up( $auth_name, \%mock_config );
-    
+
     my $mock_dbh = Apache2::AuthCookieDBI::_dbi_connect($r);
     my $expected = [
-                     $mock_config{"${auth_name}DBI_DSN"},
-                     $mock_config{"${auth_name}DBI_User"},
-                     $mock_config{"${auth_name}DBI_Password"}
-                    ];
-    Test::More::is_deeply($mock_dbh->{'connect_cached_args'},
-    $expected, '_dbi_connect() calls connect_cached() with expected arguments.')
-    || Test::More::diag( 'Sensor object contains: ', Data::Dumper::Dumper($mock_dbh));
+        $mock_config{"${auth_name}DBI_DSN"},
+        $mock_config{"${auth_name}DBI_User"},
+        $mock_config{"${auth_name}DBI_Password"}
+    ];
+    Test::More::is_deeply( $mock_dbh->{'connect_cached_args'},
+        $expected,
+        '_dbi_connect() calls connect_cached() with expected arguments.' )
+        || Test::More::diag( 'Sensor object contains: ',
+        Data::Dumper::Dumper($mock_dbh) );
 
-    Test::More::is_deeply($r->{'_error_messages'}, [], '_dbi_connect() - no unexpected errors.');
-    
+    Test::More::is_deeply( $r->{'_error_messages'},
+        [], '_dbi_connect() - no unexpected errors.' );
+
     my @expected_errors = (
         qq{connect to test DBI_DSN for auth realm $auth_name},
         q{_dbi_connect called in main::test__dbi_connect},
@@ -233,19 +236,19 @@ sub test__dbi_connect {
         local $DBI::CONNECT_CACHED_FORCE_FAIL = 1;
         Apache2::AuthCookieDBI::_dbi_connect($r);
     }
-    my @got_errors = @{$r->{'_error_messages'}};
+    my @got_errors   = @{ $r->{'_error_messages'} };
     my $got_failures = 0;
-    for ( my $i=0; $i <= $#expected_errors; $i++) {
-        my $got = $got_errors[$i];
+    for ( my $i = 0; $i <= $#expected_errors; $i++ ) {
+        my $got            = $got_errors[$i];
         my $expected_regex = qr/$expected_errors[$i]/;
-        Test::More::like($got,
-                         $expected_regex,
-                         qq{_dbi_connect() logs error for "$expected_errors[$i]"}
-                         ) || $got_failures++;
+        Test::More::like( $got, $expected_regex,
+            qq{_dbi_connect() logs error for "$expected_errors[$i]"} )
+            || $got_failures++;
     }
-  
+
     if ($got_failures) {
-        Test::More::diag('Mock request object contains: ', Data::Dumper::Dumper($r));
+        Test::More::diag( 'Mock request object contains: ',
+            Data::Dumper::Dumper($r) );
     }
     return 1;
 }
