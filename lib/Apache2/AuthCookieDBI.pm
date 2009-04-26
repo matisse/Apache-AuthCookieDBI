@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.46 2008/11/30 18:05:16 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.47 2009/04/26 17:32:37 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -260,8 +260,7 @@ sub _log_not_set {
     my ( $r, $variable ) = @_;
     my $auth_name = $r->auth_name;
     return $r->log_error(
-        "Apache2::AuthCookieDBI: $variable not set for auth realm
-$auth_name", $r->uri
+        "Apache2::AuthCookieDBI: $variable not set for auth realm $auth_name", $r->uri
     );
 }
 
@@ -287,18 +286,18 @@ my %CONFIG_DEFAULT = (
     DBI_Password        => undef,
     DBI_UsersTable      => 'users',
     DBI_UserField       => 'user',
-    DBI_passwordfield   => 'password',
-    DBI_crypttype       => 'none',
-    DBI_groupstable     => 'groups',
-    DBI_groupfield      => 'grp',
-    DBI_groupuserfield  => 'user',
-    DBI_encryptiontype  => 'none',
-    DBI_sessionlifetime => '00-24-00-00',
+    DBI_PasswordField   => 'password',
+    DBI_CryptType       => 'none',
+    DBI_GroupsTable     => 'groups',
+    DBI_GroupField      => 'grp',
+    DBI_GroupUserField  => 'user',
+    DBI_EncryptionType  => 'none',
+    DBI_SessionLifetime => '00-24-00-00',
     DBI_sessionmodule   => 'none',
 );
 
 sub _dbi_config_vars {
-    my ( $self, $r ) = @_;
+    my ( $r ) = @_;
 
     my %c;    # config variables hash
     foreach my $variable ( keys %CONFIG_DEFAULT ) {
@@ -313,7 +312,7 @@ sub _dbi_config_vars {
     }
 
     # If we used encryption we need to pull in Crypt::CBC.
-    if ( $c{DBI_encryptiontype} ne 'none' ) {
+    if ( $c{'DBI_EncryptionType'} ne 'none' ) {
         require Crypt::CBC;
     }
 
@@ -506,14 +505,14 @@ sub _dbi_connect {
 
     # get the crypted password from the users database for this user.
     my $dbh
-        = DBI->connect_cached( $c{DBI_DSN}, $c{DBI_user}, $c{DBI_password} );
+        = DBI->connect_cached( $c{'DBI_DSN'}, $c{'DBI_User'}, $c{'DBI_Password'} );
     if ( defined $dbh ) {
         return $dbh;
     }
     else {
         my $auth_name = $r->auth_name;
         $r->log_error(
-            "Apache2::AuthCookieDBI: couldn't connect to $c{ DBI_DSN } for auth realm $auth_name",
+            "Apache2::AuthCookieDBI: couldn't connect to $c{'DBI_DSN'} for auth realm $auth_name",
             $r->uri
         );
         my ( $pkg, $file, $line, $sub ) = caller(1);
@@ -532,9 +531,9 @@ sub _get_crypted_password {
     my $dbh = _dbi_connect($r) || return;
 
     my $sth = $dbh->prepare_cached( <<"EOS" );
-SELECT $c->{ DBI_passwordfield }
-FROM $c->{ DBI_userstable }
-WHERE $c->{ DBI_userfield } = ?
+SELECT $c->{ DBI_PasswordField }
+FROM $c->{ DBI_UsersTable }
+WHERE $c->{ DBI_UserField } = ?
 EOS
     $sth->execute($user);
     my ($crypted_password) = $sth->fetchrow_array;
@@ -544,7 +543,7 @@ EOS
     else {
         my $auth_name = $r->auth_name;
         $r->log_error(
-            "Apache2::AuthCookieDBI: couldn't select password from $c->{ DBI_DSN }, $c->{ DBI_userstable }, $c->{ DBI_userfield } for user $user for auth realm $auth_name",
+            "Apache2::AuthCookieDBI: couldn't select password from $c->{ DBI_DSN }, $c->{ DBI_UsersTable }, $c->{ DBI_UserField } for user $user for auth realm $auth_name",
             $r->uri
         );
         return;
@@ -612,7 +611,7 @@ The default implementation returns an empty string.
 =cut
 
 sub extra_session_info {
-    my ( $self, $r, @credentials ) = @_;
+    my ( $class, $r, @credentials ) = @_;
 
     return $EMPTY_STRING;
 }
@@ -623,7 +622,7 @@ sub extra_session_info {
 # If there is a problem, return a bogus session key.
 
 sub authen_cred {
-    my ( $self, $r,        @credentials ) = @_;
+    my ( $class, $r,        @credentials ) = @_;
     my ( $user, $password, @extra_data )  = @credentials;
     my $auth_name = $r->auth_name;
     ( $user, $password ) = _defined_or_empty( $user, $password );
@@ -651,7 +650,7 @@ sub authen_cred {
     my $crypted_password = _get_crypted_password( $r, $user, \%c );
 
     # now return unless the passwords match.
-    my $crypt_type = lc $c{DBI_crypttype};
+    my $crypt_type = lc $c{'DBI_CryptType'};
     if ( !_check_password( $password, $crypted_password, $crypt_type ) ) {
         $r->log_error(
             "Apache2::AuthCookieDBI: $crypt_type passwords didn't match for user $user for auth realm $auth_name",
@@ -661,7 +660,7 @@ sub authen_cred {
     }
 
     # Create the expire time for the ticket.
-    my $expire_time = _get_expire_time( $c{DBI_sessionlifetime} );
+    my $expire_time = _get_expire_time( $c{'DBI_SessionLifetime'} );
 
     # Now we need to %-encode non-alphanumberics in the username so we
     # can stick it in the cookie safely.
@@ -669,9 +668,9 @@ sub authen_cred {
 
     # If we are using sessions, we create a new session for this login.
     my $session_id = $EMPTY_STRING;
-    if ( $c{DBI_sessionmodule} ne 'none' ) {
+    if ( $c{'DBI_sessionmodule'} ne 'none' ) {
         my $session
-            = _get_new_session( $r, $user, $auth_name, $c{DBI_sessionmodule},
+            = _get_new_session( $r, $user, $auth_name, $c{'DBI_sessionmodule'},
             \@extra_data );
         $r->pnotes( $auth_name, $session );
         $session_id = $session->{_session_id};
@@ -682,11 +681,11 @@ sub authen_cred {
     # of the session key:
     my $current_time = _now_year_month_day_hour_minute_second;
     my $public_part  = "$enc_user:$current_time:$expire_time:$session_id";
-    $public_part .= $self->extra_session_info( $r, @credentials );
+    $public_part .= $class->extra_session_info( $r, @credentials );
 
     # Now we calculate the hash of this and the secret key and then
     # calculate the hash of *that* and the secret key again.
-    my $secretkey = $c{DBI_SecretKey};
+    my $secretkey = $c{'DBI_SecretKey'};
     if ( !defined $secretkey ) {
         $r->log_error(
             "Apache2::AuthCookieDBI: didn't have the secret key for auth realm $auth_name",
@@ -703,7 +702,7 @@ sub authen_cred {
     # Now we encrypt this and return it.
     my $encrypted_session_key
         = _encrypt_session_key( $session_key, $secretkey, $auth_name,
-        $c{DBI_encryptiontype} );
+        $c{'DBI_EncryptionType'} );
     return $encrypted_session_key;
 }
 
@@ -711,15 +710,15 @@ sub authen_cred {
 # Take a session key and check that it is still valid; if so, return the user.
 
 sub authen_ses_key {
-    my ( $self, $r, $encrypted_session_key ) = @_;
+    my ( $class, $r, $encrypted_session_key ) = @_;
 
     my $auth_name = $r->auth_name;
 
     # Get the configuration information.
-    my %c = $self->_dbi_config_vars($r);
+    my %c = _dbi_config_vars($r);
 
     # Get the secret key.
-    my $secret_key = $c{DBI_SecretKey};
+    my $secret_key = $c{'DBI_SecretKey'};
     if ( !defined $secret_key ) {
         $r->log_error(
             "Apache2::AuthCookieDBI: didn't have the secret key from for auth realm $auth_name",
@@ -728,7 +727,7 @@ sub authen_ses_key {
         return;
     }
 
-    my $session_key = $self->decrypt_session_key( $r, $c{'DBI_encryptiontype'},
+    my $session_key = $class->decrypt_session_key( $r, $c{'DBI_EncryptionType'},
         $encrypted_session_key, $secret_key )
         || return;
 
@@ -776,18 +775,18 @@ sub authen_ses_key {
     }
 
     # If we're using a session module, check that their session exist.
-    if ( $c{DBI_sessionmodule} ne 'none' ) {
+    if ( $c{'DBI_sessionmodule'} ne 'none' ) {
         my %session;
         my $dbh = _dbi_connect($r) || return;
 
-        eval {
-            tie %session, $c{DBI_sessionmodule}, $session_id,
+        my $tie_result = eval {
+            tie %session, $c{'DBI_sessionmodule'}, $session_id,
                 +{
                 Handle     => $dbh,
                 LockHandle => $dbh,
                 };
         };
-        if ($EVAL_ERROR) {
+        if ( (! $tie_result) || $EVAL_ERROR) {
             $r->log_error(
                 "Apache2::AuthCookieDBI: failed to tie session hash using session id $session_id for user $user for auth_realm $auth_name, error was $@",
                 $r->uri
@@ -834,14 +833,14 @@ sub authen_ses_key {
     # check that the issue time + the current (server-set) session lifetime
     # hasn't passed too (in case we issued long-lived session tickets
     # in the past that we want to get rid of). *** TODO ***
-    # if ( lc $c{ DBI_AlwaysUseCurrentSessionLifetime } eq 'on' ) {
+    # if ( lc $c{'DBI_AlwaysUseCurrentSessionLifetime'} eq 'on' ) {
 
     # They must be okay, so return the user.
     return $user;
 }
 
 sub decrypt_session_key {
-    my ( $self, $r, $encryptiontype, $encrypted_session_key, $secret_key ) = @_;
+    my ( $class, $r, $encryptiontype, $encrypted_session_key, $secret_key ) = @_;
 
     if ( $encryptiontype eq 'none' ) {
         return $encrypted_session_key;
@@ -878,13 +877,13 @@ sub decrypt_session_key {
 # of one of them.
 
 sub group {
-    my ( $self, $r, $groups ) = @_;
+    my ( $class, $r, $groups ) = @_;
     my @groups = split( $WHITESPACE_REGEX, $groups );
 
     my $auth_name = $r->auth_name;
 
     # Get the configuration information.
-    my %c = $self->_dbi_config_vars($r);
+    my %c = _dbi_config_vars($r);
 
     my $user = $r->user;
 
@@ -893,10 +892,10 @@ sub group {
 
     # Now loop through all the groups to see if we're a member of any:
     my $sth = $dbh->prepare_cached( <<"EOS" );
-SELECT $c{ DBI_groupuserfield }
-FROM $c{ DBI_groupstable }
-WHERE $c{ DBI_groupfield } = ?
-AND $c{ DBI_groupuserfield } = ?
+SELECT $c{'DBI_GroupUserField'}
+FROM $c{'DBI_GroupsTable'}
+WHERE $c{'DBI_GroupField'} = ?
+AND $c{'DBI_GroupUserField'} = ?
 EOS
     foreach my $group (@groups) {
         $sth->execute( $group, $user );
@@ -916,9 +915,9 @@ sub _get_expire_time {
     my $expire_time = $EMPTY_STRING;
 
     if ( $session_lifetime eq 'forever' ) {
-        $expire_time = '9999-01-01-01-01-01'
-            ,    # expire time in a zillion years if it's forever.
-            return $expire_time;
+        $expire_time = '9999-01-01-01-01-01';
+         # expire time in a zillion years if it's forever.
+         return $expire_time;
     }
 
     my ( $deltaday, $deltahour, $deltaminute, $deltasecond )
