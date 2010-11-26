@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.48 2009/04/26 17:33:26 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.49 2010/11/26 22:13:57 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -42,6 +42,8 @@ use Apache2::RequestRec;
 use Apache::DBI;
 use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN );
 use Apache2::ServerUtil;
+use Carp qw();
+use Crypt::CBC;
 use Digest::MD5 qw( md5_hex );
 use Date::Calc qw( Today_and_Now Add_Delta_DHMS );
 
@@ -61,7 +63,7 @@ my %CIPHERS = ();
 my $EMPTY_STRING = q{};
 
 my $WHITESPACE_REGEX                      = qr/ \s+ /mx;
-my $HEX_STRING_REGEX                      = qr/ \A [0-9a-fA-F] \z /mx;
+my $HEX_STRING_REGEX                      = qr/ \A [0-9a-fA-F]+ \z /mx;
 my $THIRTY_TWO_CHARACTER_HEX_STRING_REGEX = qr/  \A [0-9a-fA-F]{32} \z /mx;
 my $DATE_TIME_STRING_REGEX = qr/ \A \d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2} \z /mx;
 my $PERCENT_ENCODED_STRING_REGEX = qr/ \A [a-zA-Z0-9_\%]+ \z /mx;
@@ -185,31 +187,40 @@ and the login form is shown again.
 # P R I V A T E   F U N C T I O N S
 #===============================================================================
 
+sub _clear_ciphers {
+    my ($class) = @_;
+    %CIPHERS = ();
+}
+
 # Get the cipher from the cache, or create a new one if the
-# cached cipher hasn't been created, & decrypt the session key.
-sub _get_cipher_type {
-    my ( $dbi_encryption_type, $auth_name, $secret_key ) = @_;
+# cached cipher hasn't been created.
+sub _get_cipher_for_type {
+    my ($class, $dbi_encryption_type, $auth_name, $secret_key ) = @_;
     my $lc_encryption_type = lc $dbi_encryption_type;
 
-    my %cipher_type = (
+    if (exists $CIPHERS{"$lc_encryption_type:$auth_name"} ) {
+        return $CIPHERS{"$lc_encryption_type:$auth_name"};
+    }
+
+    my %cipher_for_type = (
         des => sub {
             return $CIPHERS{"des:$auth_name"}
-                || Crypt::CBC->new( $secret_key, 'DES' );
+                || Crypt::CBC->new( -key => $secret_key, -cipher => 'DES' );
         },
         idea => sub {
             return $CIPHERS{"idea:$auth_name"}
-                || Crypt::CBC->new( $secret_key, 'IDEA' );
+                || Crypt::CBC->new( -key => $secret_key, -cipher => 'IDEA' );
         },
         blowfish => sub {
             return $CIPHERS{"blowfish:$auth_name"}
-                || Crypt::CBC->new( $secret_key, 'Blowfish' );
+                || Crypt::CBC->new( -key => $secret_key, -cipher => 'Blowfish' );
         },
         blowfish_pp => sub {
             return $CIPHERS{"blowfish_pp:$auth_name"}
-                || Crypt::CBC->new( $secret_key, 'Blowfish_PP' );
+                || Crypt::CBC->new( -key => $secret_key, -cipher => 'Blowfish_PP' );
         },
     );
-    my $code_ref = $cipher_type{$lc_encryption_type}
+    my $code_ref = $cipher_for_type{$lc_encryption_type}
         || Carp::confess("Unsupported encryption type: '$dbi_encryption_type'");
     my $cbc_object = $code_ref->();
 
@@ -220,36 +231,22 @@ sub _get_cipher_type {
 }
 
 sub _encrypt_session_key {
+    my $class               = shift;
     my $session_key         = shift;
     my $secret_key          = shift;
     my $auth_name           = shift;
     my $dbi_encryption_type = lc shift;
 
-    my %encryption_handlers = (
-        none => sub { return $session_key },
-        des  => sub {
-            $CIPHERS{"des:$auth_name"}
-                ||= Crypt::CBC->new( $secret_key, 'DES' );
-            return $CIPHERS{"des:$auth_name"}->encrypt_hex($session_key);
-        },
-        idea => sub {
-            $CIPHERS{"idea:$auth_name"}
-                ||= Crypt::CBC->new( $secret_key, 'IDEA' );
-            return $CIPHERS{"idea:$auth_name"}->encrypt_hex($session_key);
-        },
-        blowfish => sub {
-            $CIPHERS{"blowfish:$auth_name"}
-                ||= Crypt::CBC->new( $secret_key, 'Blowfish' );
-            return $CIPHERS{"blowfish:$auth_name"}->encrypt_hex($session_key);
-        },
-        blowfish_pp => sub {
-            $CIPHERS{"blowfish_pp:$auth_name"}
-                ||= Crypt::CBC->new( $secret_key, 'Blowfish_PP' );
-            return $CIPHERS{"blowfish_pp:$auth_name"}
-                ->encrypt_hex($session_key);
-        },
-    );
-    my $encrypted_key = $encryption_handlers{$dbi_encryption_type}->();
+    if (! defined $dbi_encryption_type) {
+        Carp::confess('$dbi_encryption_type must be defined.');
+    }
+
+    if ($dbi_encryption_type eq 'none') {
+        return $session_key;
+    }
+    
+    my $cipher = $class->_get_cipher_for_type( $dbi_encryption_type, $auth_name, $secret_key );
+    my $encrypted_key = $cipher->encrypt_hex($session_key);
     return $encrypted_key;
 }
 
@@ -268,7 +265,7 @@ sub _log_not_set {
 # _dir_config_var -- Get a particular authentication variable.
 
 sub _dir_config_var {
-    my ( $r, $variable ) = @_;
+    my ( $class, $r, $variable ) = @_;
     my $auth_name = $r->auth_name;
     return $r->dir_config("$auth_name$variable");
 }
@@ -297,11 +294,11 @@ my %CONFIG_DEFAULT = (
 );
 
 sub _dbi_config_vars {
-    my ($r) = @_;
+    my ($class,$r) = @_;
 
     my %c;    # config variables hash
     foreach my $variable ( keys %CONFIG_DEFAULT ) {
-        my $value_from_config = _dir_config_var( $r, $variable );
+        my $value_from_config = $class->_dir_config_var( $r, $variable );
         $c{$variable}
             = defined $value_from_config
             ? $value_from_config
@@ -500,8 +497,8 @@ sub _percent_decode {
 # _dbi_connect -- Get a database handle.
 
 sub _dbi_connect {
-    my ($r) = @_;
-    my %c = _dbi_config_vars $r;
+    my ($class, $r) = @_;
+    my %c = $class->_dbi_config_vars($r);
 
     # get the crypted password from the users database for this user.
     my $dbh = DBI->connect_cached( $c{'DBI_DSN'}, $c{'DBI_User'},
@@ -527,8 +524,8 @@ sub _dbi_connect {
 # _get_crypted_password -- Get the users' password from the database
 
 sub _get_crypted_password {
-    my ( $r, $user, $c ) = @_;
-    my $dbh = _dbi_connect($r) || return;
+    my ($class, $r, $user, $c ) = @_;
+    my $dbh = $class->_dbi_connect($r) || return;
 
     my $sth = $dbh->prepare_cached( <<"EOS" );
 SELECT $c->{ DBI_PasswordField }
@@ -647,7 +644,7 @@ sub authen_cred {
     my %c = _dbi_config_vars($r);
 
     # get the crypted password from the users database for this user.
-    my $crypted_password = _get_crypted_password( $r, $user, \%c );
+    my $crypted_password = $class->_get_crypted_password( $r, $user, \%c );
 
     # now return unless the passwords match.
     my $crypt_type = lc $c{'DBI_CryptType'};
@@ -701,8 +698,12 @@ sub authen_cred {
 
     # Now we encrypt this and return it.
     my $encrypted_session_key
-        = _encrypt_session_key( $session_key, $secretkey, $auth_name,
-        $c{'DBI_EncryptionType'} );
+        = $class->_encrypt_session_key(
+            $session_key,
+            $secretkey,
+            $auth_name,
+            $c{'DBI_EncryptionType'}
+            );
     return $encrypted_session_key;
 }
 
@@ -715,7 +716,7 @@ sub authen_ses_key {
     my $auth_name = $r->auth_name;
 
     # Get the configuration information.
-    my %c = _dbi_config_vars($r);
+    my %c = $class->_dbi_config_vars($r);
 
     # Get the secret key.
     my $secret_key = $c{'DBI_SecretKey'};
@@ -860,7 +861,7 @@ sub decrypt_session_key {
         return;
     }
 
-    my $cipher = _get_cipher_type( $encryptiontype, $auth_name, $secret_key );
+    my $cipher = $class->_get_cipher_for_type( $encryptiontype, $auth_name, $secret_key );
     if ( !$cipher ) {
         $r->log_error(
             "Apache2::AuthCookieDBI: unknown encryption type '$encryptiontype' for auth realm $auth_name",
@@ -883,7 +884,7 @@ sub group {
     my $auth_name = $r->auth_name;
 
     # Get the configuration information.
-    my %c = _dbi_config_vars($r);
+    my %c = $class->_dbi_config_vars($r);
 
     my $user = $r->user;
 
