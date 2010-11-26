@@ -30,7 +30,6 @@ sub set_up {
         auth_name   => $auth_name,
         mock_config => $mock_config
     );    # from mock_libs
-    $CLASS_UNDER_TEST->_clear_ciphers();
     return $r;
 }
 

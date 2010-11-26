@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.49 2010/11/26 22:13:57 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.50 2010/11/26 22:20:41 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -187,18 +187,13 @@ and the login form is shown again.
 # P R I V A T E   F U N C T I O N S
 #===============================================================================
 
-sub _clear_ciphers {
-    my ($class) = @_;
-    %CIPHERS = ();
-}
-
 # Get the cipher from the cache, or create a new one if the
 # cached cipher hasn't been created.
 sub _get_cipher_for_type {
-    my ($class, $dbi_encryption_type, $auth_name, $secret_key ) = @_;
+    my ( $class, $dbi_encryption_type, $auth_name, $secret_key ) = @_;
     my $lc_encryption_type = lc $dbi_encryption_type;
 
-    if (exists $CIPHERS{"$lc_encryption_type:$auth_name"} ) {
+    if ( exists $CIPHERS{"$lc_encryption_type:$auth_name"} ) {
         return $CIPHERS{"$lc_encryption_type:$auth_name"};
     }
 
@@ -213,11 +208,15 @@ sub _get_cipher_for_type {
         },
         blowfish => sub {
             return $CIPHERS{"blowfish:$auth_name"}
-                || Crypt::CBC->new( -key => $secret_key, -cipher => 'Blowfish' );
+                || Crypt::CBC->new( -key => $secret_key,
+                -cipher => 'Blowfish' );
         },
         blowfish_pp => sub {
             return $CIPHERS{"blowfish_pp:$auth_name"}
-                || Crypt::CBC->new( -key => $secret_key, -cipher => 'Blowfish_PP' );
+                || Crypt::CBC->new(
+                -key    => $secret_key,
+                -cipher => 'Blowfish_PP'
+                );
         },
     );
     my $code_ref = $cipher_for_type{$lc_encryption_type}
@@ -237,15 +236,16 @@ sub _encrypt_session_key {
     my $auth_name           = shift;
     my $dbi_encryption_type = lc shift;
 
-    if (! defined $dbi_encryption_type) {
+    if ( !defined $dbi_encryption_type ) {
         Carp::confess('$dbi_encryption_type must be defined.');
     }
 
-    if ($dbi_encryption_type eq 'none') {
+    if ( $dbi_encryption_type eq 'none' ) {
         return $session_key;
     }
-    
-    my $cipher = $class->_get_cipher_for_type( $dbi_encryption_type, $auth_name, $secret_key );
+
+    my $cipher = $class->_get_cipher_for_type( $dbi_encryption_type, $auth_name,
+        $secret_key );
     my $encrypted_key = $cipher->encrypt_hex($session_key);
     return $encrypted_key;
 }
@@ -294,7 +294,7 @@ my %CONFIG_DEFAULT = (
 );
 
 sub _dbi_config_vars {
-    my ($class,$r) = @_;
+    my ( $class, $r ) = @_;
 
     my %c;    # config variables hash
     foreach my $variable ( keys %CONFIG_DEFAULT ) {
@@ -497,7 +497,7 @@ sub _percent_decode {
 # _dbi_connect -- Get a database handle.
 
 sub _dbi_connect {
-    my ($class, $r) = @_;
+    my ( $class, $r ) = @_;
     my %c = $class->_dbi_config_vars($r);
 
     # get the crypted password from the users database for this user.
@@ -524,7 +524,7 @@ sub _dbi_connect {
 # _get_crypted_password -- Get the users' password from the database
 
 sub _get_crypted_password {
-    my ($class, $r, $user, $c ) = @_;
+    my ( $class, $r, $user, $c ) = @_;
     my $dbh = $class->_dbi_connect($r) || return;
 
     my $sth = $dbh->prepare_cached( <<"EOS" );
@@ -698,12 +698,8 @@ sub authen_cred {
 
     # Now we encrypt this and return it.
     my $encrypted_session_key
-        = $class->_encrypt_session_key(
-            $session_key,
-            $secretkey,
-            $auth_name,
-            $c{'DBI_EncryptionType'}
-            );
+        = $class->_encrypt_session_key( $session_key, $secretkey, $auth_name,
+        $c{'DBI_EncryptionType'} );
     return $encrypted_session_key;
 }
 
@@ -861,7 +857,8 @@ sub decrypt_session_key {
         return;
     }
 
-    my $cipher = $class->_get_cipher_for_type( $encryptiontype, $auth_name, $secret_key );
+    my $cipher = $class->_get_cipher_for_type( $encryptiontype, $auth_name,
+        $secret_key );
     if ( !$cipher ) {
         $r->log_error(
             "Apache2::AuthCookieDBI: unknown encryption type '$encryptiontype' for auth realm $auth_name",
