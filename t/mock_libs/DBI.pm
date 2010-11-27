@@ -1,8 +1,8 @@
-# $Header: /Users/matisse/Desktop/CVS2GIT/matisse.net.cvs/Apache-AuthCookieDBI/t/mock_libs/DBI.pm,v 1.3 2009/04/26 17:33:26 matisse Exp $
-# $Revision: 1.3 $
+# $Header: /Users/matisse/Desktop/CVS2GIT/matisse.net.cvs/Apache-AuthCookieDBI/t/mock_libs/DBI.pm,v 1.4 2010/11/27 19:15:37 matisse Exp $
+# $Revision: 1.4 $
 # $Author: matisse $
 # $Source: /Users/matisse/Desktop/CVS2GIT/matisse.net.cvs/Apache-AuthCookieDBI/t/mock_libs/DBI.pm,v $
-# $Date: 2009/04/26 17:33:26 $
+# $Date: 2010/11/27 19:15:37 $
 ###############################################################################
 
 #  Mock class - for testing only
@@ -28,6 +28,32 @@ sub connect_cached {
     $fake_dbh->{'connect_cached_args'} = \@args;
 
     return $fake_dbh;
+}
+
+package DBI::Mock::dbh;
+sub prepare_cached {
+    my ($self, @args) = @_;
+    return bless {}, 'DBI::Mock::sth';
+}
+
+package DBI::Mock::sth;
+
+sub execute {
+    my ($self, @args) = @_;
+    return $self;
+}
+
+# You probably want to override fetchrow_array in your test method
+# to simulate various return values.
+sub fetchrow_array {
+    my ($self, @args) = @_;
+    return @args;
+}
+
+sub finish {
+    my ($self)  = @_;
+    undef $self;
+    return;
 }
 
 1;

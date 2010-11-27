@@ -1,15 +1,15 @@
+Build.PL
 Changes
+eg/bin/login.pl
+eg/html/login-failed.html
+eg/html/login.html
+generic_reg_auth_scheme.txt
+lib/Apache2/AuthCookieDBI.pm
 LICENSE
 MANIFEST
 MANIFEST.SKIP
 META.yml			Module meta-data (added by MakeMaker)
-Makefile.PL
 README
-eg/html/login-failed.html
-eg/html/login.html
-eg/public-pl/login.pl
-generic_reg_auth_scheme.txt
-lib/Apache2/AuthCookieDBI.pm
 schema.sql
 t/basic.t
 t/mock_libs/Apache/DBI.pm
@@ -22,3 +22,4 @@ t/mock_libs/DBI.pm
 t/mock_libs/Digest/MD5.pm
 t/utils.t
 techspec.txt
+Makefile.PL

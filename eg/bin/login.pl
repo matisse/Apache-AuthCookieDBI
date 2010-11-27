@@ -1,6 +1,6 @@
 #!/usr/bin/perl -Tw
 #
-# $Id: login.pl,v 1.4 2010/11/27 04:11:19 matisse Exp $
+# $Id: login.pl,v 1.1 2010/11/27 19:15:37 matisse Exp $
 #
 # Display a login form with hidden fields corresponding to the page they
 # wanted to see.

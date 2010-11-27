@@ -3,16 +3,18 @@ use warnings;
 use English qw(-no_match_vars);
 use FindBin qw($Bin);
 use lib "$Bin/mock_libs";
+use Apache2::RequestRec;          # from mocks
 use Crypt::CBC;                   # from mocks
 use Digest::MD5 qw( md5_hex );    # from mocks
 use Data::Dumper;
 
-use Test::More tests => 38;
+use Test::More tests => 43;
 
-my $CLASS_UNDER_TEST = 'Apache2::AuthCookieDBI';
-my $EMPTY_STRING     = q{};
+use constant CLASS_UNDER_TEST => 'Apache2::AuthCookieDBI';
+use constant EMPTY_STRING     => q{};
+use constant TRUE             => 1;
 
-use_ok($CLASS_UNDER_TEST);
+use_ok(CLASS_UNDER_TEST);
 test_check_password();
 test_defined_or_empty();
 test_decrypt_session_key();
@@ -21,7 +23,8 @@ test_dir_config_var();
 test_authen_ses_key();
 test_get_cipher_for_type();
 test__dbi_connect();
-test_get_sql_query_for_user_info();
+test_get_crypted_password();
+test_user_is_active();
 
 exit;
 
@@ -38,13 +41,14 @@ sub set_up {
 sub _mock_config_for_auth_name {
     my ($auth_name) = @_;
     my %mock_config = (
-        "${auth_name}DBI_DSN"           => 'test DBI_DSN',
-        "${auth_name}DBI_User"          => 'test DBI_User',
-        "${auth_name}DBI_Password"      => 'test DBI_Password',
-        "${auth_name}DBI_SecretKey"     => 'test DBI_SecretKey',
-        "${auth_name}DBI_PasswordField" => 'test DBI_PasswordField',
-        "${auth_name}DBI_UsersTable"    => 'test DBI_UsersTable',
-        "${auth_name}DBI_UserField"     => 'test DBI_UserField',
+        "${auth_name}DBI_DSN"             => 'test_DBI_DSN',
+        "${auth_name}DBI_User"            => 'test_DBI_User',
+        "${auth_name}DBI_Password"        => 'test_DBI_Password',
+        "${auth_name}DBI_SecretKey"       => 'test_DBI_SecretKey',
+        "${auth_name}DBI_PasswordField"   => 'test_DBI_PasswordField',
+        "${auth_name}DBI_UsersTable"      => 'test_DBI_Userstable',
+        "${auth_name}DBI_UserField"       => 'test_DBI_UserField',
+        "${auth_name}DBI_UserActiveField" => EMPTY_STRING,
     );
     return \%mock_config;
 }
@@ -79,7 +83,7 @@ sub test_authen_ses_key {
         $expected_user, $issue_time, $expire_time,
         $session_id,    $hashed_string );
 
-    $CLASS_UNDER_TEST->authen_ses_key( $r, $encrypted_session_key );
+    CLASS_UNDER_TEST->authen_ses_key( $r, $encrypted_session_key );
     like(
         $r->log_error->[-1],
         qr/ bad \s encrypted \s session_key /xm,
@@ -102,18 +106,18 @@ sub test_authen_ses_key {
     $encrypted_session_key = join( q{:}, $public_part, $hashed_string );
 
     my $got_user
-        = $CLASS_UNDER_TEST->authen_ses_key( $r, $encrypted_session_key );
+        = CLASS_UNDER_TEST->authen_ses_key( $r, $encrypted_session_key );
     is( $got_user, $expected_user, 'authen_ses_key() on plaintext key' )
         || diag join( "\n", @{ $r->log_error() } );
-    return 1;
+    return TRUE;
 }
 
 sub test_check_password {
     Test::More::ok(
-        !$CLASS_UNDER_TEST->_check_password( 'foo', undef, 'bar' ),
+        !CLASS_UNDER_TEST->_check_password( 'foo', undef, 'bar' ),
         '_check_password() return false when password is undef'
     );
-    return 1;
+    return TRUE;
 }
 
 sub test_dir_config_var {
@@ -124,11 +128,11 @@ sub test_dir_config_var {
         = { $config_key => 'Value for this configuration variable.', };
     my $r = set_up( $auth_name, $mock_config );
 
-    is( $CLASS_UNDER_TEST->_dir_config_var( $r, $variable_wanted ),
+    is( CLASS_UNDER_TEST->_dir_config_var( $r, $variable_wanted ),
         $mock_config->{$config_key},
         '_dir_config_var() passes correct args to $r->dir_config()'
     );
-    return 1;
+    return TRUE;
 }
 
 sub test_decrypt_session_key {
@@ -148,12 +152,12 @@ sub test_decrypt_session_key {
     my $session_key = 'mock_session_key';
     foreach my $encryption_type ( sort keys %encryption_types ) {
         my @args = ( $session_key, $secret_key, $auth_name, $encryption_type );
-        my $encrypted_key = $CLASS_UNDER_TEST->_encrypt_session_key(@args);
+        my $encrypted_key = CLASS_UNDER_TEST->_encrypt_session_key(@args);
 
  #Test::More::diag("Encryption type: '$encryption_type' key: '$encrypted_key'");
 
         my $decrypted_key
-            = $CLASS_UNDER_TEST->decrypt_session_key( $r, $encryption_type,
+            = CLASS_UNDER_TEST->decrypt_session_key( $r, $encryption_type,
             $encrypted_key, $secret_key );
         Test::More::ok( defined $decrypted_key,
             "Got decrypted key for '$encryption_type'" )
@@ -170,11 +174,9 @@ sub test_defined_or_empty {
     my @other_stuff = qw( a b c );
     my @args = ( $user, $password, @other_stuff );
     my $expected = scalar @args + 1;    # Add 1 for the class argument
-    is( $CLASS_UNDER_TEST->_defined_or_empty( $user, $password, @other_stuff ),
-        $expected,
-        '_defined_or_empty returns expected number of items.'
-    );
-    return 1;
+    is( CLASS_UNDER_TEST->_defined_or_empty( $user, $password, @other_stuff ),
+        $expected, '_defined_or_empty returns expected number of items.' );
+    return TRUE;
 }
 
 sub test_encrypt_session_key {
@@ -196,7 +198,7 @@ sub test_encrypt_session_key {
     #
     foreach my $encryption_type ( sort keys %{$expected} ) {
         my @args = ( $session_key, $secret_key, $auth_name, $encryption_type );
-        my $mock_crypt_text = $CLASS_UNDER_TEST->_encrypt_session_key(@args);
+        my $mock_crypt_text = CLASS_UNDER_TEST->_encrypt_session_key(@args);
         my $un_hexified     = $mock_crypt_text;
         if ( $encryption_type ne 'none' ) {
             $un_hexified = pack 'H*', $mock_crypt_text;
@@ -206,7 +208,7 @@ sub test_encrypt_session_key {
             "_encrypt_session_key() using '$encryption_type' (returned '$mock_crypt_text')"
         );
     }
-    return 1;
+    return TRUE;
 }
 
 sub test_get_cipher_for_type {
@@ -234,7 +236,7 @@ sub test_get_cipher_for_type {
     foreach my $case (@test_cases) {
         my $dbi_encryption_type = $case->{'dbi_encryption_type'};
         my $mock_cbc
-            = $CLASS_UNDER_TEST->_get_cipher_for_type( $dbi_encryption_type,
+            = CLASS_UNDER_TEST->_get_cipher_for_type( $dbi_encryption_type,
             $auth_name, $secret_key, );
         Test::More::is( $mock_cbc->{'-key'}, $secret_key,
             "_get_cipher_for_type() for $dbi_encryption_type - secret_key" );
@@ -245,7 +247,7 @@ sub test_get_cipher_for_type {
             "_get_cipher_for_type() for $dbi_encryption_type - cipher_type" );
 
         my $second_mock_from_same_args
-            = $CLASS_UNDER_TEST->_get_cipher_for_type( $dbi_encryption_type,
+            = CLASS_UNDER_TEST->_get_cipher_for_type( $dbi_encryption_type,
             $auth_name, $secret_key, );
 
         Test::More::is( $second_mock_from_same_args, $mock_cbc,
@@ -255,7 +257,7 @@ sub test_get_cipher_for_type {
 
     my $unsupported_type = 'BunnyRabbits';
     eval {
-        $CLASS_UNDER_TEST->_get_cipher_for_type( $unsupported_type, $auth_name,
+        CLASS_UNDER_TEST->_get_cipher_for_type( $unsupported_type, $auth_name,
             $secret_key, );
     };
     Test::More::like(
@@ -263,7 +265,46 @@ sub test_get_cipher_for_type {
         qr/Unsupported encryption type: '$unsupported_type'/,
         '_get_cipher_for_type() throws exception on unsupported encryption type.'
     );
-    return 1;
+    return TRUE;
+}
+
+sub test_get_crypted_password {
+    my $auth_name         = 'test_get_crypted_password';
+    my $user              = 'test_user';
+    my $r                 = set_up($auth_name);
+    my $expected_password = 'mock_crypted_password';
+    my $got_password;
+    {
+        no warnings qw(once redefine);
+        local *DBI::Mock::sth::fetchrow_array = sub {
+            return ($expected_password);
+        };
+        $got_password = CLASS_UNDER_TEST->_get_crypted_password( $r, $user );
+    }
+
+    Test::More::is( $got_password, $expected_password,
+        '_get_crypted_password() with default config.' );
+
+    # Simulate password not found
+    {
+        no warnings qw(once redefine);
+        local *DBI::Mock::sth::fetchrow_array = sub {
+            return ()    # empty array, password not found;
+        };
+        $got_password = CLASS_UNDER_TEST->_get_crypted_password( $r, $user );
+    }
+    Test::More::ok( !$got_password,
+        '_get_crypted_password() with password not found' );
+    my $got_errrors = $r->log_error();    # from the mock request object
+    Test::More::is( scalar @$got_errrors,
+        1, '_get_crypted_password() logs password not found' );
+    Test::More::like(
+        $got_errrors->[0],
+        qr/\ACould not select password/,
+        '_get_crypted_password() error message for password not found'
+    );
+
+    return TRUE;
 }
 
 sub test__dbi_connect {
@@ -272,7 +313,7 @@ sub test__dbi_connect {
     my $r           = set_up($auth_name);
     my $mock_config = $r->{'mock_config'};
 
-    my $mock_dbh = $CLASS_UNDER_TEST->_dbi_connect($r);
+    my $mock_dbh = CLASS_UNDER_TEST->_dbi_connect($r);
     my $expected = [
         $mock_config->{"${auth_name}DBI_DSN"},
         $mock_config->{"${auth_name}DBI_User"},
@@ -288,13 +329,13 @@ sub test__dbi_connect {
         [], '_dbi_connect() - no unexpected errors.' );
 
     my @expected_errors = (
-        qq{connect to test DBI_DSN for auth realm $auth_name},
+        qq{connect to test_DBI_DSN for auth realm $auth_name},
         q{_dbi_connect called in main::test__dbi_connect},
     );
     {
         no warnings qw(once);
         local $DBI::CONNECT_CACHED_FORCE_FAIL = 1;
-        $CLASS_UNDER_TEST->_dbi_connect($r);
+        CLASS_UNDER_TEST->_dbi_connect($r);
     }
     my @got_errors   = @{ $r->{'_error_messages'} };
     my $got_failures = 0;
@@ -310,38 +351,46 @@ sub test__dbi_connect {
         Test::More::diag( 'Mock request object contains: ',
             Data::Dumper::Dumper($r) );
     }
-    return 1;
+    return TRUE;
 }
 
-sub test_get_sql_query_for_user_info {
-    my $auth_name   = 'Test';
-    my $r           = set_up($auth_name);
-    my %mock_config = $CLASS_UNDER_TEST->_dbi_config_vars($r);
-    my $user        = 'TestUser';
+sub test_user_is_active {
+    my $auth_name = 'test_user_is_active';
+    my $r         = set_up($auth_name);
+    my $user      = 'TestUser';
 
-    my $c            = \%mock_config;
-    my $expected_sql = qr/\s*SELECT \s*
-                           \Q$c->{'DBI_PasswordField'}\E \s*
-                           FROM \s* \Q$c->{'DBI_UsersTable'}\E/sx;
-    my $got_sql = $CLASS_UNDER_TEST->_get_sql_query_for_user_info( $user, $c );
-    Test::More::like( $got_sql, $expected_sql,
-        '_sql_query_for_user_info() using default config has SELECT ... FROM' );
+    # The default config has an empty string for DBI_UserActiveField
+    my $is_active = CLASS_UNDER_TEST->user_is_active( $r, $user );
+    Test::More::ok( $is_active, 'test_user_is_active() for default config' );
 
-    # Add DBI_UserActiveField
-    my $name_of_active_field = 'test_user_active_field';
-    $c->{'DBI_UserActiveField'} = $name_of_active_field;
-    my $expected_sql_with_active_field = qr/\s*SELECT \s*
-                           \Q$c->{'DBI_PasswordField'}\E \s*
-                           , \s $name_of_active_field \s*
-                           FROM \s* \Q$c->{'DBI_UsersTable'}\E/sx;
-    my $got_sql_with_active_field
-        = $CLASS_UNDER_TEST->_get_sql_query_for_user_info( $user, $c );
+    # Now set DBI_UserActiveField so that user status is determined by
+    # a call to the database (we'll intercept here using mocks.)
+    $r->{'mock_config'}->{"${auth_name}DBI_UserActiveField"} = 'active';
+    my $not_active;
 
-    Test::More::like(
-        $got_sql_with_active_field,
-        $expected_sql_with_active_field,
-        '_sql_query_for_user_info() uses DBI_UserActiveField when set.'
-    );
+    # Simulate a user the database says is not active.
+    {
+        no warnings qw(once redefine);
+        local *DBI::Mock::sth::fetchrow_array = sub {
+            return;    # simulates user is not active
+        };
+        $not_active = CLASS_UNDER_TEST->user_is_active( $r, $user );
+    }
+    Test::More::ok( !$not_active,
+        'test_user_is_active() inactive user using DBI_UserActiveField' )
+        || Test::More::diag("Expected a non-true value, got '$not_active'");
 
-    return 1;
+    # Now simulate an active user whose status is fetch from the database
+    my $active_user;
+    {
+        no warnings qw(once redefine);
+        local *DBI::Mock::sth::fetchrow_array = sub {
+            return 'yes';    # simulates an active user
+        };
+        $active_user = CLASS_UNDER_TEST->user_is_active( $r, $user );
+    }
+    Test::More::ok( $active_user,
+        'test_user_is_active() with active user using DBI_UserActiveField' );
+
+    return TRUE;
 }

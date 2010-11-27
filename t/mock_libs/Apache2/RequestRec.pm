@@ -36,4 +36,12 @@ sub uri {
     return 'test_uri';
 }
 
+sub user {
+    my ($self, $new_user) = @_;
+    if ($new_user) {
+        $self->{'user'} = $new_user;
+    }
+    return $self->{'user'};
+}
+
 1;
