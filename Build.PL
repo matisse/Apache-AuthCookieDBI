@@ -1,4 +1,4 @@
-# $Id: Build.PL,v 1.1 2010/11/26 22:13:58 matisse Exp $
+# $Id: Build.PL,v 1.2 2010/11/27 19:27:41 matisse Exp $
 use strict;
 use warnings;
 
@@ -32,8 +32,7 @@ $build->create_build_script();
     NAME    => 'Apache2::AuthCookieDBI',
     LICENSE => 'lgpl',
 
-    #'VERSION_FROM' => 'AuthCookieDBI.pm', # finds $VERSION
-    VERSION   => '2.05',
+    'VERSION_FROM' => 'Apache2::AuthCookieDBI.pm', # finds $VERSION
     PREREQ_PM => {
         'mod_perl2'           => '1.999022',
         'Apache2::AuthCookie' => '3.08',

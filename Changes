@@ -1,7 +1,8 @@
 Revision history for Perl extension Apache2::AuthCookieDBI.
 
-2.06 (unreleased)
+2.13 (unreleased)
     - Build system uses Module::Build (generates a Makefile.PL for compatability.)
+    - Distro version now matches module version (2.13)
     - Fixed statement handle still active <https://rt.cpan.org/Public/Bug/Display.html?id=57906>
       Also added support for WhatEverDBI_UserActiveField
       Thanks to Chad Columbus
