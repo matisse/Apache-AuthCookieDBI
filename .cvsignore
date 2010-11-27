@@ -4,3 +4,4 @@ blib
 Build
 *.gz
 _build
+Makefile.PL
