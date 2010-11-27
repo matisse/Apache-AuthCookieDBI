@@ -1,5 +1,10 @@
 Revision history for Perl extension Apache2::AuthCookieDBI.
 
+2.06 (unreleased)
+    - Fixed https://rt.cpan.org/Public/Bug/Display.html?id=57906
+    - Added support for WhatEverDBI_UserActiveField
+    - Fixed https://rt.cpan.org/Public/Bug/Display.html?id=46117 $HEX_STRING_REGEX definition is wrong
+
 2.05 - Thu May 14 18:37:07 PDT 2009
        - Fixed bug in _get_cipher_type() where it was not memoizing the
          Crypt::CBC objects.

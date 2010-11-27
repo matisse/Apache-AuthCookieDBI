@@ -7,12 +7,13 @@ use Crypt::CBC;                   # from mocks
 use Digest::MD5 qw( md5_hex );    # from mocks
 use Data::Dumper;
 
-use Test::More tests => 35;
+use Test::More tests => 38;
 
 my $CLASS_UNDER_TEST = 'Apache2::AuthCookieDBI';
 my $EMPTY_STRING     = q{};
 
 use_ok($CLASS_UNDER_TEST);
+test_check_password();
 test_defined_or_empty();
 test_decrypt_session_key();
 test_encrypt_session_key();
@@ -20,6 +21,7 @@ test_dir_config_var();
 test_authen_ses_key();
 test_get_cipher_for_type();
 test__dbi_connect();
+test_get_sql_query_for_user_info();
 
 exit;
 
@@ -36,10 +38,13 @@ sub set_up {
 sub _mock_config_for_auth_name {
     my ($auth_name) = @_;
     my %mock_config = (
-        "${auth_name}DBI_DSN"       => 'test DBI_DSN',
-        "${auth_name}DBI_User"      => 'test DBI_User',
-        "${auth_name}DBI_Password"  => 'test DBI_Password',
-        "${auth_name}DBI_SecretKey" => 'test DBI_SecretKey',
+        "${auth_name}DBI_DSN"           => 'test DBI_DSN',
+        "${auth_name}DBI_User"          => 'test DBI_User',
+        "${auth_name}DBI_Password"      => 'test DBI_Password',
+        "${auth_name}DBI_SecretKey"     => 'test DBI_SecretKey',
+        "${auth_name}DBI_PasswordField" => 'test DBI_PasswordField',
+        "${auth_name}DBI_UsersTable"    => 'test DBI_UsersTable',
+        "${auth_name}DBI_UserField"     => 'test DBI_UserField',
     );
     return \%mock_config;
 }
@@ -100,6 +105,14 @@ sub test_authen_ses_key {
         = $CLASS_UNDER_TEST->authen_ses_key( $r, $encrypted_session_key );
     is( $got_user, $expected_user, 'authen_ses_key() on plaintext key' )
         || diag join( "\n", @{ $r->log_error() } );
+    return 1;
+}
+
+sub test_check_password {
+    Test::More::ok(
+        !$CLASS_UNDER_TEST->_check_password( 'foo', undef, 'bar' ),
+        '_check_password() return false when password is undef'
+    );
     return 1;
 }
 
@@ -175,7 +188,7 @@ sub test_encrypt_session_key {
         blowfish    => "Blowfish:$secret_key:$session_key",
         blowfish_pp => "Blowfish_PP:$secret_key:$session_key",
     };
-    
+
     # These tests will use a fake version of Crypt::CBC -- see set_up()
     # We are just testing that the expecyed methods got called with the
     # expected parameters. Basically we arre using the mock CBC object as
@@ -297,5 +310,38 @@ sub test__dbi_connect {
         Test::More::diag( 'Mock request object contains: ',
             Data::Dumper::Dumper($r) );
     }
+    return 1;
+}
+
+sub test_get_sql_query_for_user_info {
+    my $auth_name   = 'Test';
+    my $r           = set_up($auth_name);
+    my %mock_config = $CLASS_UNDER_TEST->_dbi_config_vars($r);
+    my $user        = 'TestUser';
+
+    my $c            = \%mock_config;
+    my $expected_sql = qr/\s*SELECT \s*
+                           \Q$c->{'DBI_PasswordField'}\E \s*
+                           FROM \s* \Q$c->{'DBI_UsersTable'}\E/sx;
+    my $got_sql = $CLASS_UNDER_TEST->_get_sql_query_for_user_info( $user, $c );
+    Test::More::like( $got_sql, $expected_sql,
+        '_sql_query_for_user_info() using default config has SELECT ... FROM' );
+
+    # Add DBI_UserActiveField
+    my $name_of_active_field = 'test_user_active_field';
+    $c->{'DBI_UserActiveField'} = $name_of_active_field;
+    my $expected_sql_with_active_field = qr/\s*SELECT \s*
+                           \Q$c->{'DBI_PasswordField'}\E \s*
+                           , \s $name_of_active_field \s*
+                           FROM \s* \Q$c->{'DBI_UsersTable'}\E/sx;
+    my $got_sql_with_active_field
+        = $CLASS_UNDER_TEST->_get_sql_query_for_user_info( $user, $c );
+
+    Test::More::like(
+        $got_sql_with_active_field,
+        $expected_sql_with_active_field,
+        '_sql_query_for_user_info() uses DBI_UserActiveField when set.'
+    );
+
     return 1;
 }

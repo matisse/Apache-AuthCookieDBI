@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.50 2010/11/26 22:20:41 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.51 2010/11/27 00:44:36 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -43,7 +43,6 @@ use Apache::DBI;
 use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN );
 use Apache2::ServerUtil;
 use Carp qw();
-use Crypt::CBC;
 use Digest::MD5 qw( md5_hex );
 use Date::Calc qw( Today_and_Now Add_Delta_DHMS );
 
@@ -69,6 +68,9 @@ my $DATE_TIME_STRING_REGEX = qr/ \A \d{4}-\d{2}-\d{2}-\d{2}-\d{2}-\d{2} \z /mx;
 my $PERCENT_ENCODED_STRING_REGEX = qr/ \A [a-zA-Z0-9_\%]+ \z /mx;
 my $COLON_REGEX                  = qr/ : /mx;
 my $HYPHEN_REGEX                 = qr/ - /mx;
+
+use constant TRUE         => 1;
+use constant EMPTY_STRING => q{};
 
 #===============================================================================
 # P E R L D O C
@@ -109,6 +111,7 @@ there is: L<Apache::AuthCookieDBI>
     PerlSetVar WhatEverDBI_UsersTable "users"
     PerlSetVar WhatEverDBI_UserField "user"
     PerlSetVar WhatEverDBI_PasswordField "password"
+    PerlSetVar WhatEverDBI_UserActiveField "" # Default is skip this feature
     PerlSetVar WhatEverDBI_CryptType "none"
     PerlSetVar WhatEverDBI_GroupsTable "groups"
     PerlSetVar WhatEverDBI_GroupField "grp"
@@ -208,8 +211,10 @@ sub _get_cipher_for_type {
         },
         blowfish => sub {
             return $CIPHERS{"blowfish:$auth_name"}
-                || Crypt::CBC->new( -key => $secret_key,
-                -cipher => 'Blowfish' );
+                || Crypt::CBC->new(
+                -key    => $secret_key,
+                -cipher => 'Blowfish'
+                );
         },
         blowfish_pp => sub {
             return $CIPHERS{"blowfish_pp:$auth_name"}
@@ -284,6 +289,7 @@ my %CONFIG_DEFAULT = (
     DBI_UsersTable      => 'users',
     DBI_UserField       => 'user',
     DBI_PasswordField   => 'password',
+    DBI_UserActiveField => EMPTY_STRING,    # Default is don't use this feature
     DBI_CryptType       => 'none',
     DBI_GroupsTable     => 'groups',
     DBI_GroupField      => 'grp',
@@ -384,6 +390,14 @@ required and defaults to 'user'.
 The field in the above table that has the password.  This is not
 required and defaults to 'password'.
 
+=item C<WhatEverDBI_UserActiveField>
+
+The field in the above table that has a value indicating if the users' account
+is "active".  This is optional and the default is to not use this field.
+If used then users will fail authentication if the value in this field
+is not a Perlish true value, so NULL, 0, and the empty string are all false
+values.
+
 =item C<WhatEverDBI_CryptType>
 
 What kind of hashing is used on the password field in the database.  This can
@@ -457,9 +471,12 @@ sub _now_year_month_day_hour_minute_second {
 }
 
 sub _check_password {
-    my $password         = shift;
-    my $crypted_password = shift;
-    my $crypt_type       = shift;
+    my ( $class, $password, $crypted_password, $crypt_type ) = @_;
+
+    return
+        if not $crypted_password
+    ;    # https://rt.cpan.org/Public/Bug/Display.html?id=62470
+
     my %password_checker = (
         none => sub { return $password eq $crypted_password; },
         'crypt' => sub {
@@ -509,13 +526,11 @@ sub _dbi_connect {
     else {
         my $auth_name = $r->auth_name;
         $r->log_error(
-            "Apache2::AuthCookieDBI: couldn't connect to $c{'DBI_DSN'} for auth realm $auth_name",
+            "$class: couldn't connect to $c{'DBI_DSN'} for auth realm $auth_name",
             $r->uri
         );
         my ( $pkg, $file, $line, $sub ) = caller(1);
-        $r->log_error(
-            "Apache2::AuthCookieDBI::_dbi_connect called in $sub at line $line"
-        );
+        $r->log_error("${class}->_dbi_connect called in $sub at line $line");
         return;
     }
 }
@@ -527,24 +542,49 @@ sub _get_crypted_password {
     my ( $class, $r, $user, $c ) = @_;
     my $dbh = $class->_dbi_connect($r) || return;
 
-    my $sth = $dbh->prepare_cached( <<"EOS" );
-SELECT $c->{ DBI_PasswordField }
-FROM $c->{ DBI_UsersTable }
-WHERE $c->{ DBI_UserField } = ?
-EOS
+    my $user_is_active   = TRUE;           # Default is yes, the user is active
+    my $crypted_password = EMPTY_STRING;
+    my $use_active_field_name = $c->{'DBI_UserActiveField'};
+
+    my $sql_query = $class->_get_sql_query_for_user_info( $user, $c );
+
+    my $sth = $dbh->prepare_cached($sql_query);
     $sth->execute($user);
-    my ($crypted_password) = $sth->fetchrow_array;
-    if ( defined $crypted_password ) {
-        return $crypted_password;
+    if ($use_active_field_name) {
+        ( $crypted_password, $user_is_active ) = $sth->fetchrow_array;
     }
     else {
+        ($crypted_password) = $sth->fetchrow_array;
+    }
+    $sth->finish();
+
+    if ( _is_empty($crypted_password) || ( !$user_is_active ) ) {
         my $auth_name = $r->auth_name;
         $r->log_error(
-            "Apache2::AuthCookieDBI: couldn't select password from $c->{ DBI_DSN }, $c->{ DBI_UsersTable }, $c->{ DBI_UserField } for user $user for auth realm $auth_name",
+            "$class: couldn't select password for user '$user' for auth realm '$auth_name' using SQL query '$sql_query'",
             $r->uri
         );
-        return;
+        return Apache2::Const::HTTP_FORBIDDEN;
     }
+    return $crypted_password;
+}
+
+sub _get_sql_query_for_user_info {
+    my ( $class, $user, $c ) = @_;
+
+    my $active_field_sql      = EMPTY_STRING;
+    my $use_active_field_name = $c->{'DBI_UserActiveField'};
+    if ($use_active_field_name) {
+        $active_field_sql = ", $use_active_field_name";
+    }
+    my $sql_query = <<"SQL";
+      SELECT $c->{'DBI_PasswordField'} $active_field_sql
+      FROM $c->{'DBI_UsersTable'}
+      WHERE $c->{'DBI_UserField'} = ?
+      AND ($c->{'DBI_PasswordField'} != ''
+      AND $c->{'DBI_PasswordField'} IS NOT NULL)
+SQL
+    return $sql_query;
 }
 
 sub _get_new_session {
@@ -582,6 +622,13 @@ sub _defined_or_empty {
         }
     }
     return @all_defined;
+}
+
+sub _is_empty {
+    my $string = shift;
+    return TRUE if not defined $string;
+    return TRUE if $string eq EMPTY_STRING;
+    return;
 }
 
 #===============================================================================
@@ -641,14 +688,15 @@ sub authen_cred {
     }
 
     # get the configuration information.
-    my %c = _dbi_config_vars($r);
+    my %c = $class->_dbi_config_vars($r);
 
     # get the crypted password from the users database for this user.
     my $crypted_password = $class->_get_crypted_password( $r, $user, \%c );
 
     # now return unless the passwords match.
     my $crypt_type = lc $c{'DBI_CryptType'};
-    if ( !_check_password( $password, $crypted_password, $crypt_type ) ) {
+    if ( !$class->_check_password( $password, $crypted_password, $crypt_type ) )
+    {
         $r->log_error(
             "Apache2::AuthCookieDBI: $crypt_type passwords didn't match for user $user for auth realm $auth_name",
             $r->uri
@@ -897,10 +945,18 @@ AND $c{'DBI_GroupUserField'} = ?
 EOS
     foreach my $group (@groups) {
         $sth->execute( $group, $user );
-        return Apache2::Const::OK if ( $sth->fetchrow_array );
+        if ( $sth->fetchrow_array ) {
+            $sth->finish();
+
+            # add the group to an ENV var that CGI programs can access:
+            $r->subprocess_env( 'AUTH_COOKIE_DBI_GROUP' => $group );
+            return Apache2::Const::OK;
+        }
     }
+    $sth->finish();
+
     $r->log_error(
-        "Apache2::AuthCookieDBI: user $user was not a member of any of the required groups @groups for auth realm $auth_name",
+        "$class: user $user was not a member of any of the required groups @groups for auth realm $auth_name",
         $r->uri
     );
     return Apache2::Const::HTTP_FORBIDDEN;
@@ -971,7 +1027,7 @@ A minimal CREATE TABLE statement might look like:
 
  Copyright (C) 2002 SF Interactive.
  Copyright (C) 2003-2004 Jacob Davies
- Copyright (C) 2004-2008 Matisse Enzer
+ Copyright (C) 2004-2010 Matisse Enzer
 
 =head1 LICENSE
 
