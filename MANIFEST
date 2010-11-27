@@ -22,4 +22,3 @@ t/mock_libs/DBI.pm
 t/mock_libs/Digest/MD5.pm
 t/utils.t
 techspec.txt
-Makefile.PL
