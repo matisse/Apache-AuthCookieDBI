@@ -1,6 +1,6 @@
 #!/usr/bin/perl -Tw
 #
-# $Id: login.pl,v 1.3 2003/10/10 22:33:31 jacob Exp $
+# $Id: login.pl,v 1.4 2010/11/27 04:11:19 matisse Exp $
 #
 # Display a login form with hidden fields corresponding to the page they
 # wanted to see.
@@ -24,7 +24,7 @@ if ( $r->prev() ) { # we are called as a subrequest.
         my %args = $r->args;
 	$destination = $args{ 'destination' };
 	$authcookiereason = $args{ 'AuthCookieReason' };
-        $t->add_tag( CREDENTIAL_0 => $r->prev->args('credential_0');
+        $t->add_tag( CREDENTIAL_0 => $r->prev->args('credential_0') );
 }
 $t->add_tag( DESTINATION => $destination );
 
