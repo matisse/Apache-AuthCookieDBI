@@ -9,3 +9,4 @@ CVS/*
 _build
 Build
 Apache2-AuthCookieDBI-*
+MYMETA.yml
