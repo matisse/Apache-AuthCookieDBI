@@ -1,11 +1,10 @@
-# $Id: Build.PL,v 1.4 2010/11/29 04:14:25 matisse Exp $
+# $Id: Build.PL,v 1.5 2010/11/29 04:15:29 matisse Exp $
 use strict;
 use warnings;
 
 use Module::Build;
 
 my $build = Module::Build->new(
-    abstract    => 'Subclass of Apache2::AuthCookie using a DBI data source.',
     author      => 'Matisse Enzer <matisse@cpan.org>',
     module_name => 'Apache2::AuthCookieDBI',
     license     => 'lgpl',
