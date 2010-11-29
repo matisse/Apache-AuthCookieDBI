@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.54 2010/11/29 04:00:11 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.55 2010/11/29 04:14:25 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -39,7 +39,7 @@ use Apache2::AuthCookie;
 use base qw( Apache2::AuthCookie );
 
 use Apache2::RequestRec;
-use Apache::DBI;
+use DBI;
 use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN );
 use Apache2::ServerUtil;
 use Carp qw();
@@ -92,7 +92,14 @@ there is: L<Apache::AuthCookieDBI>
 =head1 SYNOPSIS
 
     # In httpd.conf or .htaccess
-        
+    
+    # Optional: Initiate a persistent database connection using Apache::DBI.
+    # See: http://search.cpan.org/dist/Apache-DBI/
+    # If you choose to use Apache::DBI then the following directive must come
+    # before all other modules using DBI - just uncomment the next line:
+    #PerlModule Apache::DBI  
+   
+     
     PerlModule Apache2::AuthCookieDBI
     PerlSetVar WhatEverPath /
     PerlSetVar WhatEverLoginScript /login.pl
@@ -1100,8 +1107,9 @@ Matisse Enzer
 
 Latest version: http://search.cpan.org/perldoc?Apache2%3A%3AAuthCookieDBI
 
-Apache2::AuthCookie(1)
-Apache2::Session(1)
+ Apache2::AuthCookie - http://search.cpan.org/dist/Apache2-AuthCookie
+ Apache2::Session    - http://search.cpan.org/dist/Apache2-Session
+ Apache::AuthDBI     - http://search.cpan.org/dist/Apache-DBI
 
 =head1 TODO
 

@@ -1,4 +1,4 @@
-# $Id: Build.PL,v 1.3 2010/11/29 04:01:13 matisse Exp $
+# $Id: Build.PL,v 1.4 2010/11/29 04:14:25 matisse Exp $
 use strict;
 use warnings;
 
@@ -12,7 +12,7 @@ my $build = Module::Build->new(
     requires    => {
         'mod_perl2'           => 1.999022,
         'Apache2::AuthCookie' => 3.08,
-        'Apache::DBI'         => 0.91,
+        'DBI'                 => 1.40,
         'Apache2::Const'      => 0,
         'Apache2::RequestRec' => 0,
         'Apache2::ServerUtil' => 0,

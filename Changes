@@ -14,6 +14,7 @@ Revision history for Perl extension Apache2::AuthCookieDBI.
       (also moved from eg/public-pl/login.pl to eg/bin/login.pl)
       Thanks to William McKee http://search.cpan.org/~wmckee/
     - Updated documentation to cover protecting the DocumentRoot <https://rt.cpan.org/Ticket/Display.html?id=51593>
+    - Now depends on DBI 1.40 instead of Apache::DBI - <https://rt.cpan.org/Ticket/Display.html?id=43083>
 
 2.05 - Thu May 14 18:37:07 PDT 2009
        - Fixed bug in _get_cipher_type() where it was not memoizing the

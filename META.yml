@@ -14,19 +14,19 @@ name: Apache2-AuthCookieDBI
 provides:
   Apache2::AuthCookieDBI:
     file: lib/Apache2/AuthCookieDBI.pm
-    version: 2.061
+    version: 2.13
 requires:
   Apache2::AuthCookie: 3.08
   Apache2::Const: 0
   Apache2::RequestRec: 0
   Apache2::ServerUtil: 0
-  Apache::DBI: 0.91
   Carp: 0
   Crypt::CBC: 2.13
+  DBI: 1.4
   Date::Calc: 0
   Digest::MD5: 0
   FindBin: 0
   mod_perl2: 1.999022
 resources:
   license: http://opensource.org/licenses/lgpl-license.php
-version: 2.061
+version: 2.13
