@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.53 2010/11/27 19:27:41 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.54 2010/11/29 04:00:11 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -137,6 +137,10 @@ there is: L<Apache::AuthCookieDBI>
         AuthName WhatEver
         SetHandler perl-script
         PerlHandler Apache2::AuthCookieDBI->login
+
+        # If the directopry you are protecting is the DocumentRoot directory
+        # then uncomment the following directive:
+        #Satisfy any
     </Files>
 
 =head1 DESCRIPTION
