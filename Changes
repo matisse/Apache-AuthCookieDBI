@@ -1,20 +1,20 @@
 Revision history for Perl extension Apache2::AuthCookieDBI.
 
-2.13 (unreleased)
-    - Build system uses Module::Build (generates a Makefile.PL for compatability.)
-    - Distro version now matches module version (2.13)
-    - Fixed statement handle still active <https://rt.cpan.org/Public/Bug/Display.html?id=57906>
-      Also added support for WhatEverDBI_UserActiveField
-      Thanks to Chad Columbus
-    - Fixed $HEX_STRING_REGEX definition is wrong <https://rt.cpan.org/Public/Bug/Display.html?id=46117>
-      Thanks to Joe Ingersoll
-    - Fixed User authenticated if not in MySQL database <https://rt.cpan.org/Ticket/Display.html?id=62470>
-      Thanks to Keith Lawson
-    - Fixed Login.pl example - syntax error <https://rt.cpan.org/Public/Bug/Display.html?id=62487>
-      (also moved from eg/public-pl/login.pl to eg/bin/login.pl)
-      Thanks to William McKee http://search.cpan.org/~wmckee/
-    - Updated documentation to cover protecting the DocumentRoot <https://rt.cpan.org/Ticket/Display.html?id=51593>
-    - Now depends on DBI 1.40 instead of Apache::DBI - <https://rt.cpan.org/Ticket/Display.html?id=43083>
+2.13 - Sat Dec 18 10:33:19 PST 2010
+     - Build system uses Module::Build (generates a Makefile.PL for compatability.)
+     - Distro version now matches module version (2.13)
+     - Fixed statement handle still active <https://rt.cpan.org/Public/Bug/Display.html?id=57906>
+       Also added support for WhatEverDBI_UserActiveField
+       Thanks to Chad Columbus
+     - Fixed $HEX_STRING_REGEX definition is wrong <https://rt.cpan.org/Public/Bug/Display.html?id=46117>
+       Thanks to Joe Ingersoll
+     - Fixed User authenticated if not in MySQL database <https://rt.cpan.org/Ticket/Display.html?id=62470>
+       Thanks to Keith Lawson
+     - Fixed Login.pl example - syntax error <https://rt.cpan.org/Public/Bug/Display.html?id=62487>
+       (also moved from eg/public-pl/login.pl to eg/bin/login.pl)
+       Thanks to William McKee http://search.cpan.org/~wmckee/
+     - Updated documentation to cover protecting the DocumentRoot <https://rt.cpan.org/Ticket/Display.html?id=51593>
+     - Now depends on DBI 1.40 instead of Apache::DBI - <https://rt.cpan.org/Ticket/Display.html?id=43083>
 
 2.05 - Thu May 14 18:37:07 PDT 2009
        - Fixed bug in _get_cipher_type() where it was not memoizing the
