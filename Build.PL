@@ -1,4 +1,4 @@
-# $Id: Build.PL,v 1.5 2010/11/29 04:15:29 matisse Exp $
+# $Id: Build.PL,v 1.6 2010/12/18 18:41:52 matisse Exp $
 use strict;
 use warnings;
 
@@ -21,8 +21,13 @@ my $build = Module::Build->new(
         'Digest::MD5'         => 0,
         'FindBin'             => 0,
     },
-    build_requires => { 'Test::More' => 0.4, },
+    build_requires     => { 'Test::More' => 0.4, },
     create_makefile_pl => 'traditional',
+    add_to_cleanup     => [
+        qw( *.tar.gz
+            MANIFEST.bak
+            ),
+    ],
 );
 
 $build->create_build_script();
