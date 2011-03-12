@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.56 2011/03/12 17:37:28 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.57 2011/03/12 18:25:31 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -40,7 +40,7 @@ use base qw( Apache2::AuthCookie );
 
 use Apache2::RequestRec;
 use DBI;
-use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN );
+use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN SERVER_ERROR );
 use Apache2::ServerUtil;
 use Carp qw();
 use Digest::MD5 qw( md5_hex );
@@ -909,7 +909,7 @@ sub group {
     my $user = $r->user;
 
     # See if we have a row in the groups table for this user/group.
-    my $dbh = $class->_dbi_connect($r) || return;
+    my $dbh = $class->_dbi_connect($r) || return Apache2::Const::SERVER_ERROR;
 
     # Now loop through all the groups to see if we're a member of any:
     my $sth = $dbh->prepare_cached( <<"EOS" );

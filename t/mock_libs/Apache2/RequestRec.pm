@@ -44,4 +44,9 @@ sub user {
     return $self->{'user'};
 }
 
+sub subprocess_env {
+    my ($self, %args) = @_;
+    $self->{'subprocess_env'} = \%args;
+    return $self;
+}
 1;

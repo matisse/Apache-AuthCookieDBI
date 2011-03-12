@@ -9,7 +9,7 @@ use Crypt::CBC;                   # from mocks
 use Digest::MD5 qw( md5_hex );    # from mocks
 use Data::Dumper;
 
-use Test::More tests => 44;
+use Test::More tests => 52;
 
 use constant CLASS_UNDER_TEST => 'Apache2::AuthCookieDBI';
 use constant EMPTY_STRING     => q{};
@@ -315,12 +315,62 @@ sub test_group {
     my $user      = 'test_user';
     $r->{'user'} = $user;
     my $mock_config = $r->{'mock_config'};
-    my $groups      = 'group_one group_two';
-    my $got_result  = CLASS_UNDER_TEST->group( $r, $groups );
+    my @groups      = qw(group_one group_two);
+
+    my @database_queries;
+    my $got_result;
+    {
+        no warnings qw(once redefine);
+        local *DBI::Mock::sth::execute = sub {
+            my ( $sth, @args ) = @_;
+            push @database_queries, \@args;
+        };
+        $got_result = CLASS_UNDER_TEST->group( $r, "@groups" );
+    }
     Test::More::is(
         $got_result,
         Apache2::Const::HTTP_FORBIDDEN,
         'group() returns FORBIDDEN when user not in any group.'
+    );
+
+    for ( my $i = 0; $i < scalar @groups; $i++ ) {
+        my ( $got_group, $got_user ) = @{ $database_queries[$i] };
+        my $expected_group = $groups[$i];
+        Test::More::is( $got_group, $expected_group,
+            "group() checked DB for '$expected_group'" );
+        Test::More::is( $got_user, $user, "group() checked DB for '$user'" );
+    }
+    Test::More::like(
+        $r->{'_error_messages'}->[0],
+        qr/user $user was not a member of any of the required groups @groups/,
+        'group() logs expected message for user not in any group.'
+    );
+
+    # Test what happens when the user is in a group
+    my $group = 'some_group';
+    {
+        no warnings qw(once redefine);
+        local *DBI::Mock::sth::fetchrow_array = sub { return TRUE };
+        $got_result = CLASS_UNDER_TEST->group( $r, $group );
+    }
+    Test::More::is( $got_result, Apache2::Const::OK,
+        'group() returns OK if user is in a group.' );
+
+    Test::More::is_deeply(
+        $r->{'subprocess_env'},
+        { AUTH_COOKIE_DBI_GROUP => $group },
+        'group() sets AUTH_COOKIE_DBI_GROUP when OK'
+    );
+
+    # test failure to connect to database
+    {
+        no warnings qw(once redefine);
+        local *DBI::connect_cached = sub {return};
+        $got_result = CLASS_UNDER_TEST->group( $r, $group );
+    }
+    Test::More::is(
+        $got_result, Apache2::Const::SERVER_ERROR,
+        'group() returns SERVER_ERROR on DB connect failure.'
     );
     return TRUE;
 }
