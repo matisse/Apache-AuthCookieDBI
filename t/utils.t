@@ -3,12 +3,13 @@ use warnings;
 use English qw(-no_match_vars);
 use FindBin qw($Bin);
 use lib "$Bin/mock_libs";
-use Apache2::RequestRec;          # from mocks
+use Apache2::RequestRec;    # from mocks
+use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN );
 use Crypt::CBC;                   # from mocks
 use Digest::MD5 qw( md5_hex );    # from mocks
 use Data::Dumper;
 
-use Test::More tests => 43;
+use Test::More tests => 44;
 
 use constant CLASS_UNDER_TEST => 'Apache2::AuthCookieDBI';
 use constant EMPTY_STRING     => q{};
@@ -22,6 +23,7 @@ test_encrypt_session_key();
 test_dir_config_var();
 test_authen_ses_key();
 test_get_cipher_for_type();
+test_group();
 test__dbi_connect();
 test_get_crypted_password();
 test_user_is_active();
@@ -304,6 +306,22 @@ sub test_get_crypted_password {
         '_get_crypted_password() error message for password not found'
     );
 
+    return TRUE;
+}
+
+sub test_group {
+    my $auth_name = 'test_group';
+    my $r         = set_up($auth_name);
+    my $user      = 'test_user';
+    $r->{'user'} = $user;
+    my $mock_config = $r->{'mock_config'};
+    my $groups      = 'group_one group_two';
+    my $got_result  = CLASS_UNDER_TEST->group( $r, $groups );
+    Test::More::is(
+        $got_result,
+        Apache2::Const::HTTP_FORBIDDEN,
+        'group() returns FORBIDDEN when user not in any group.'
+    );
     return TRUE;
 }
 

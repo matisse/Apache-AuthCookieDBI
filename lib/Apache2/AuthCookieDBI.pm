@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.55 2010/11/29 04:14:25 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.56 2011/03/12 17:37:28 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -362,10 +362,17 @@ root and include it.
 
 This is required and has no default value.
 (NOTE: In AuthCookieDBI versions 1.22 and earlier the secret key either could be
-or was required to be in a seperate file with the path configured with
-PerlSetVar WhateverDBI_SecretKeyFile, as of version 2.0 this is not possible, you
-must put the secret key in the Apache configuration directly, either in the main
-httpd.conf file or in an included file.  You might wish to make the file not
+set in the configuration file itself
+or it could be place in a seperate file with the path configured with
+C<PerlSetVar WhateverDBI_SecretKeyFile>.
+
+As of version 2.0 you must use  C<WhateverDBI_SecretKey> and not
+C<PerlSetVar WhateverDBI_SecretKeyFile>.
+
+If you want to put the secret key in a separate file then you can create a
+separate file that uses C<PerlSetVar WhateverDBI_SecretKey> and include that
+file in your main Apache configuration using Apaches' C<Include>
+directive. You might wish to make the file not
 world-readable. Also, make sure that the Perl environment variables are
 not publically available, for example via the /perl-status handler.)
 See also L</"COMPATIBILITY"> in this man page.
@@ -526,6 +533,8 @@ sub _percent_decode {
 
 sub _dbi_connect {
     my ( $class, $r ) = @_;
+    Carp::confess('Failed to pass Apache request object') if not $r;
+
     my %c = $class->_dbi_config_vars($r);
 
     # get the crypted password from the users database for this user.
@@ -900,7 +909,7 @@ sub group {
     my $user = $r->user;
 
     # See if we have a row in the groups table for this user/group.
-    my $dbh = _dbi_connect($r) || return;
+    my $dbh = $class->_dbi_connect($r) || return;
 
     # Now loop through all the groups to see if we're a member of any:
     my $sth = $dbh->prepare_cached( <<"EOS" );
