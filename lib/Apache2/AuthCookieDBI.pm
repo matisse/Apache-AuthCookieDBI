@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.57 2011/03/12 18:25:31 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.58 2011/03/12 19:13:40 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -591,13 +591,14 @@ SQL
 }
 
 sub _get_new_session {
+    my $class          = shift;
     my $r              = shift;
     my $user           = shift;
     my $auth_name      = shift;
     my $session_module = shift;
     my $extra_data     = shift;
 
-    my $dbh = _dbi_connect($r);
+    my $dbh = $class->_dbi_connect($r);
     my %session;
     tie %session, $session_module, undef,
         +{
@@ -692,9 +693,10 @@ sub authen_cred {
     # If we are using sessions, we create a new session for this login.
     my $session_id = EMPTY_STRING;
     if ( $c{'DBI_sessionmodule'} ne 'none' ) {
-        my $session
-            = _get_new_session( $r, $user, $auth_name, $c{'DBI_sessionmodule'},
-            \@extra_data );
+        my $session = $class->_get_new_session(
+            $r, $user, $auth_name, $c{'DBI_sessionmodule'},
+            \@extra_data
+        );
         $r->pnotes( $auth_name, $session );
         $session_id = $session->{_session_id};
     }
@@ -953,7 +955,7 @@ sub user_is_active {
       WHERE $c{'DBI_UserField'} = ?
 SQL
 
-    my $sth  = $dbh->prepare_cached($sql_query);
+    my $sth = $dbh->prepare_cached($sql_query);
     $sth->execute($user);
     my ($user_active_setting) = $sth->fetchrow_array;
     $sth->finish();

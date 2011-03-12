@@ -8,8 +8,9 @@ use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN );
 use Crypt::CBC;                   # from mocks
 use Digest::MD5 qw( md5_hex );    # from mocks
 use Data::Dumper;
+use Mock::Tieable;
 
-use Test::More tests => 52;
+use Test::More tests => 53;
 
 use constant CLASS_UNDER_TEST => 'Apache2::AuthCookieDBI';
 use constant EMPTY_STRING     => q{};
@@ -27,6 +28,7 @@ test_group();
 test__dbi_connect();
 test_get_crypted_password();
 test_user_is_active();
+test__get_new_session();
 
 exit;
 
@@ -368,10 +370,8 @@ sub test_group {
         local *DBI::connect_cached = sub {return};
         $got_result = CLASS_UNDER_TEST->group( $r, $group );
     }
-    Test::More::is(
-        $got_result, Apache2::Const::SERVER_ERROR,
-        'group() returns SERVER_ERROR on DB connect failure.'
-    );
+    Test::More::is( $got_result, Apache2::Const::SERVER_ERROR,
+        'group() returns SERVER_ERROR on DB connect failure.' );
     return TRUE;
 }
 
@@ -460,5 +460,23 @@ sub test_user_is_active {
     Test::More::ok( $active_user,
         'test_user_is_active() with active user using DBI_UserActiveField' );
 
+    return TRUE;
+}
+
+sub test__get_new_session {
+    my $auth_name      = 'test__get_new_session';
+    my $r              = set_up($auth_name);
+    my $user           = 'TestUser';
+    my $session_module = 'Mock::Tieable';
+    my $extra_data     = 'extra data';
+
+    my $got_session = CLASS_UNDER_TEST->_get_new_session( $r, $user, $auth_name,
+        $session_module, $extra_data );
+
+    Test::More::is_deeply(
+        $got_session,
+        { user => $user, extra_data => $extra_data },
+        q{_get_new_session() ties 'user' and 'extra_data' args.}
+    );
     return TRUE;
 }
