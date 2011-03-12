@@ -10,7 +10,7 @@ use Digest::MD5 qw( md5_hex );    # from mocks
 use Data::Dumper;
 use Mock::Tieable;
 
-use Test::More tests => 53;
+use Test::More tests => 55;
 
 use constant CLASS_UNDER_TEST => 'Apache2::AuthCookieDBI';
 use constant EMPTY_STRING     => q{};
@@ -113,6 +113,18 @@ sub test_authen_ses_key {
         = CLASS_UNDER_TEST->authen_ses_key( $r, $encrypted_session_key );
     is( $got_user, $expected_user, 'authen_ses_key() on plaintext key' )
         || diag join( "\n", @{ $r->log_error() } );
+
+    $mock_config->{ $auth_name . 'DBI_sessionmodule' } = 'Missing::Class';
+    $r = set_up( $auth_name, $mock_config );
+    $got_user = CLASS_UNDER_TEST->authen_ses_key( $r, $encrypted_session_key );
+    Test::More::ok( !$got_user,
+        'authen_ses_key() returns false on failure to tie session.' );
+    my $class = CLASS_UNDER_TEST;
+    Test::More::like(
+        $r->{'_error_messages'}->[0],
+        qr/${class}: failed to tie session hash/,
+        'authen_ses_key() logs failure to tie session hash.'
+    );
     return TRUE;
 }
 
