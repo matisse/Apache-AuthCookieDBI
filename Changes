@@ -1,8 +1,11 @@
 Revision history for Perl extension Apache2::AuthCookieDBI.
 
 2.14 - Not released yet
-       Changed documentation about WhateverDBI_SecretKey to
+     - Changed documentation about WhateverDBI_SecretKey to
        address https://rt.cpan.org/Ticket/Display.html?id=62488
+     - Fixes for https://rt.cpan.org/Public/Bug/Display.html?id=66336
+       (_dbi_connect should be called as a class method.)
+
 2.13 - Sat Dec 18 10:33:19 PST 2010
      - Build system uses Module::Build (generates a Makefile.PL for compatability.)
      - Distro version now matches module version (2.13)

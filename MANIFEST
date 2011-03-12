@@ -20,6 +20,7 @@ t/mock_libs/Apache2/ServerUtil.pm
 t/mock_libs/Crypt/CBC.pm
 t/mock_libs/DBI.pm
 t/mock_libs/Digest/MD5.pm
+t/mock_libs/Mock/Tieable.pm
 t/utils.t
 techspec.txt
 Makefile.PL

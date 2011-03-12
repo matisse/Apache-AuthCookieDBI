@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.59 2011/03/12 19:54:43 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.60 2011/03/12 20:14:41 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -33,7 +33,7 @@ package Apache2::AuthCookieDBI;
 use strict;
 use warnings;
 use 5.004;
-our $VERSION = 2.13;
+our $VERSION = 2.14;
 
 use Apache2::AuthCookie;
 use base qw( Apache2::AuthCookie );
@@ -81,7 +81,7 @@ Apache2::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
 =head1 VERSION
 
-    This is version 2.13
+    This is version 2.14
 
 =head1 COMPATIBILITY
 
