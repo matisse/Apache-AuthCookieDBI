@@ -74,7 +74,7 @@ sub test_authen_ses_key {
         $auth_name . 'DBI_groupuserfield'  => 'user',
         $auth_name . 'DBI_encryptiontype'  => 'none',
         $auth_name . 'DBI_sessionlifetime' => '00-24-00-00',
-        $auth_name . 'DBI_sessionmodule'   => 'none',
+        $auth_name . 'DBI_sessionmodule'   => 'Mock::Tieable',
     };
     my $r                  = set_up( $auth_name, $mock_config );
     my $expected_user      = 'expected_username';

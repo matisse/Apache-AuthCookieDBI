@@ -1,6 +1,6 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.58 2011/03/12 19:13:40 matisse Exp $
+# $Id: AuthCookieDBI.pm,v 1.59 2011/03/12 19:54:43 matisse Exp $
 #
 # Apache2::AuthCookieDBI
 #
@@ -606,8 +606,8 @@ sub _get_new_session {
         LockHandle => $dbh,
         };
 
-    $session{user}       = $user;
-    $session{extra_data} = $extra_data;
+    $session{'user'}       = $user;
+    $session{'extra_data'} = $extra_data;
     return \%session;
 }
 
@@ -747,7 +747,7 @@ sub authen_ses_key {
     my $secret_key = $c{'DBI_SecretKey'};
     if ( !defined $secret_key ) {
         $r->log_error(
-            "Apache2::AuthCookieDBI: didn't have the secret key from for auth realm $auth_name",
+            "$class: didn't have the secret key from for auth realm $auth_name",
             $r->uri
         );
         return;
@@ -766,7 +766,7 @@ sub authen_ses_key {
     ($enc_user) = _defined_or_empty($enc_user);
     if ( $enc_user !~ PERCENT_ENCODED_STRING_REGEX ) {
         $r->log_error(
-            "Apache2::AuthCookieDBI: bad percent-encoded user '$enc_user' recovered from session ticket for auth_realm '$auth_name'",
+            "$class: bad percent-encoded user '$enc_user' recovered from session ticket for auth_realm '$auth_name'",
             $r->uri
         );
         return;
@@ -778,7 +778,7 @@ sub authen_ses_key {
     ($issue_time) = _defined_or_empty($issue_time);
     if ( $issue_time !~ DATE_TIME_STRING_REGEX ) {
         $r->log_error(
-            "Apache2::AuthCookieDBI: bad issue time '$issue_time' recovered from ticket for user $user for auth_realm $auth_name",
+            "$class: bad issue time '$issue_time' recovered from ticket for user $user for auth_realm $auth_name",
             $r->uri
         );
         return;
@@ -787,14 +787,14 @@ sub authen_ses_key {
     ($expire_time) = _defined_or_empty($expire_time);
     if ( $expire_time !~ DATE_TIME_STRING_REGEX ) {
         $r->log_error(
-            "Apache2::AuthCookieDBI: bad expire time $expire_time recovered from ticket for user $user for auth_realm $auth_name",
+            "$class: bad expire time $expire_time recovered from ticket for user $user for auth_realm $auth_name",
             $r->uri
         );
         return;
     }
     if ( $hashed_string !~ THIRTY_TWO_CHARACTER_HEX_STRING_REGEX ) {
         $r->log_error(
-            "Apache2::AuthCookieDBI: bad encrypted session_key $hashed_string recovered from ticket for user $user for auth_realm $auth_name",
+            "$class: bad encrypted session_key $hashed_string recovered from ticket for user $user for auth_realm $auth_name",
             $r->uri
         );
         return;
@@ -803,7 +803,7 @@ sub authen_ses_key {
     # If we're using a session module, check that their session exist.
     if ( $c{'DBI_sessionmodule'} ne 'none' ) {
         my %session;
-        my $dbh = _dbi_connect($r) || return;
+        my $dbh = $class->_dbi_connect($r) || return;
 
         my $tie_result = eval {
             tie %session, $c{'DBI_sessionmodule'}, $session_id,
@@ -814,7 +814,7 @@ sub authen_ses_key {
         };
         if ( ( !$tie_result ) || $EVAL_ERROR ) {
             $r->log_error(
-                "Apache2::AuthCookieDBI: failed to tie session hash using session id $session_id for user $user for auth_realm $auth_name, error was $@",
+                "$class: failed to tie session hash to '$c{'DBI_sessionmodule'}' using session id $session_id for user $user for auth_realm $auth_name, error was '$EVAL_ERROR'",
                 $r->uri
             );
             return;
@@ -840,7 +840,7 @@ sub authen_ses_key {
     # Compare it to the hash they gave us.
     if ( $new_hash ne $hashed_string ) {
         $r->log_error(
-            "Apache2::AuthCookieDBI: hash '$hashed_string' in cookie did not match calculated hash '$new_hash' of contents for user $user for auth realm $auth_name",
+            "$class: hash '$hashed_string' in cookie did not match calculated hash '$new_hash' of contents for user $user for auth realm $auth_name",
             $r->uri
         );
         return;
@@ -849,7 +849,7 @@ sub authen_ses_key {
     # Check that their session hasn't timed out.
     if ( _now_year_month_day_hour_minute_second gt $expire_time ) {
         $r->log_error(
-            "Apache:AuthCookieDBI: expire time $expire_time has passed for user $user for auth realm $auth_name",
+            "$class: expire time $expire_time has passed for user $user for auth realm $auth_name",
             $r->uri
         );
         return;
