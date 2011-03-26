@@ -1,6 +1,6 @@
 Revision history for Perl extension Apache2::AuthCookieDBI.
 
-2.14 - Not released yet
+2.14 - Sat Mar 26 09:41:01 PDT 2011
      - Changed documentation about WhateverDBI_SecretKey to
        address https://rt.cpan.org/Ticket/Display.html?id=62488
      - Fixes for https://rt.cpan.org/Public/Bug/Display.html?id=66336
