@@ -6,11 +6,13 @@ database using generic SQL and issues MD5-checksummed tickets valid for
 a configurable time period.  Incoming requests with tickets are
 checksummed and expire-time checked.
 
-Version 2.03 and later: mod_perl 1.999_22 and later. Apache::* replaced by Apache2::
-Latest version at:  http://search.cpan.org/search?query=Apache2%3A%3AAuthCookieDBI&mode=all
+Version 2.03 and later: mod_perl 1.999_22 and later. Apache::*
+replaced by Apache2::
+
+Latest version at: http://search.cpan.org/dist/Apache2-AuthCookieDBI
 
 Apache::AuthCookieDBI versions:
-Version 2.0  - 2.02: mod_perl 1.99_XX
+Version 2.0 and later: mod_perl 1.99_XX
 Version 1.22 was the last version that works with mod_perl 1.x
 
 
