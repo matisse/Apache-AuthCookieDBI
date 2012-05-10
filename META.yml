@@ -29,4 +29,5 @@ requires:
   mod_perl2: 1.999022
 resources:
   license: http://opensource.org/licenses/lgpl-license.php
+  repository: git://github.com/matisse/Apache-AuthCookieDBI.git
 version: 2.14
