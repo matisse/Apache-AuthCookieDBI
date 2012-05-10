@@ -33,14 +33,15 @@ package Apache2::AuthCookieDBI;
 use strict;
 use warnings;
 use 5.004;
-our $VERSION = 2.14;
+our $VERSION = '2.15.1';
 
 use Apache2::AuthCookie;
 use base qw( Apache2::AuthCookie );
 
 use Apache2::RequestRec;
 use DBI;
-use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN SERVER_ERROR );
+use Apache2::Log;
+use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN SERVER_ERROR :log );
 use Apache2::ServerUtil;
 use Carp qw();
 use Digest::MD5 qw( md5_hex );
@@ -70,6 +71,9 @@ use constant THIRTY_TWO_CHARACTER_HEX_STRING_REGEX =>
     qr/  \A [0-9a-fA-F]{32} \z /mx;
 use constant TRUE             => 1;
 use constant WHITESPACE_REGEX => qr/ \s+ /mx;
+use constant LOG_TYPE_AUTH    => 'authentication';
+use constant LOG_TYPE_SYSTEM  => 'system';
+use constant LOG_TYPE_TIMEOUT => 'timeout';
 
 #===============================================================================
 # P E R L D O C
@@ -205,6 +209,7 @@ and the login form is shown again.
 sub _get_cipher_for_type {
     my ( $class, $dbi_encryption_type, $auth_name, $secret_key ) = @_;
     my $lc_encryption_type = lc $dbi_encryption_type;
+    my $message;
 
     if ( exists $CIPHERS{"$lc_encryption_type:$auth_name"} ) {
         return $CIPHERS{"$lc_encryption_type:$auth_name"};
@@ -250,6 +255,7 @@ sub _encrypt_session_key {
     my $secret_key          = shift;
     my $auth_name           = shift;
     my $dbi_encryption_type = lc shift;
+    my $message;
 
     if ( !defined $dbi_encryption_type ) {
         Carp::confess('$dbi_encryption_type must be defined.');
@@ -269,11 +275,12 @@ sub _encrypt_session_key {
 # _log_not_set -- Log that a particular authentication variable was not set.
 
 sub _log_not_set {
-    my ( $r, $variable ) = @_;
+    my ( $class, $r, $variable ) = @_;
     my $auth_name = $r->auth_name;
-    return $r->log_error(
-        "Apache2::AuthCookieDBI: $variable not set for auth realm $auth_name",
-        $r->uri );
+    my $message   = "$class: $variable not set for auth realm $auth_name";
+    $class->logger( $r, Apache2::Const::LOG_ERR, $message, undef,
+        LOG_TYPE_SYSTEM, $r->uri );
+    return;
 }
 
 #-------------------------------------------------------------------------------
@@ -320,7 +327,7 @@ sub _dbi_config_vars {
             ? $value_from_config
             : $CONFIG_DEFAULT{$variable};
         if ( !defined $c{$variable} ) {
-            _log_not_set( $r, $variable );
+            $class->_log_not_set( $r, $variable );
         }
     }
 
@@ -535,22 +542,31 @@ sub _dbi_connect {
     my ( $class, $r ) = @_;
     Carp::confess('Failed to pass Apache request object') if not $r;
 
+    my ( $pkg, $file, $line, $sub ) = caller(1);
+    my $info_message = "${class}->_dbi_connect called in $sub at line $line";
+    $class->logger( $r, Apache2::Const::LOG_INFO, $info_message, undef,
+        LOG_TYPE_SYSTEM, $r->uri );
+
     my %c = $class->_dbi_config_vars($r);
+
+    my $auth_name = $r->auth_name;
 
     # get the crypted password from the users database for this user.
     my $dbh = DBI->connect_cached( $c{'DBI_DSN'}, $c{'DBI_User'},
         $c{'DBI_Password'} );
     if ( defined $dbh ) {
+        my $info_message = "connect to $c{'DBI_DSN'} for auth realm $auth_name"
+            ;
+        $class->logger( $r, Apache2::Const::LOG_INFO, $info_message, undef,
+            LOG_TYPE_SYSTEM, $r->uri );
         return $dbh;
     }
     else {
-        my $auth_name = $r->auth_name;
-        $r->log_error(
-            "$class: couldn't connect to $c{'DBI_DSN'} for auth realm $auth_name",
-            $r->uri
-        );
-        my ( $pkg, $file, $line, $sub ) = caller(1);
-        $r->log_error("${class}->_dbi_connect called in $sub at line $line");
+
+        my $error_message
+            = "$class: couldn't connect to $c{'DBI_DSN'} for auth realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_ERR, $error_message,
+            LOG_TYPE_SYSTEM, undef, $r->uri );
         return;
     }
 }
@@ -559,12 +575,14 @@ sub _dbi_connect {
 # _get_crypted_password -- Get the users' password from the database
 sub _get_crypted_password {
     my ( $class, $r, $user ) = @_;
-    my $dbh = $class->_dbi_connect($r) || return;
-    my %c = $class->_dbi_config_vars($r);
+    my $dbh       = $class->_dbi_connect($r) || return;
+    my %c         = $class->_dbi_config_vars($r);
+    my $auth_name = $r->auth_name;
 
     if ( !$class->user_is_active( $r, $user ) ) {
-        my $message = "User '$user' is not active.";
-        $r->log_error( $message, $r->uri() );
+        my $message = "User '$user' is not active for auth realm $auth_name. ";
+        $class->logger( $r, Apache2::Const::LOG_NOTICE, $message, $user,
+            LOG_TYPE_AUTH, $r->uri );
         return;
     }
 
@@ -584,7 +602,8 @@ SQL
 
     if ( _is_empty($crypted_password) ) {
         my $message = "Could not select password using SQL query '$sql_query'";
-        $r->log_error( $message, $r->uri() );
+        $class->logger( $r, Apache2::Const::LOG_ERR, $message, $user,
+            LOG_TYPE_AUTH, $r->uri );
         return;
     }
     return $crypted_password;
@@ -651,18 +670,16 @@ sub authen_cred {
     ( $user, $password ) = _defined_or_empty( $user, $password );
 
     if ( !length $user ) {
-        $r->log_error(
-            "Apache2::AuthCookieDBI: no username supplied for auth realm $auth_name",
-            $r->uri
-        );
+        my $message = "$class: no username supplied for auth realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_NOTICE, $message, $user,
+            LOG_TYPE_AUTH, $r->uri );
         return;
     }
 
     if ( !length $password ) {
-        $r->log_error(
-            "Apache2::AuthCookieDBI: no password supplied for auth realm $auth_name",
-            $r->uri
-        );
+        my $message = "$class: no password supplied for auth realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_NOTICE, $message, $user,
+            LOG_TYPE_AUTH, $r->uri );
         return;
     }
 
@@ -676,12 +693,17 @@ sub authen_cred {
     my $crypt_type = lc $c{'DBI_CryptType'};
     if ( !$class->_check_password( $password, $crypted_password, $crypt_type ) )
     {
-        $r->log_error(
-            "Apache2::AuthCookieDBI: $crypt_type passwords didn't match for user $user for auth realm $auth_name",
-            $r->uri
-        );
+        my $message
+            = "$class: $crypt_type passwords didn't match for user $user for auth realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_NOTICE, $message, $user,
+            LOG_TYPE_AUTH, $r->uri );
         return;
     }
+
+    # Sucessful login
+    my $message = "$class: Sucessful login for $user";
+    $class->logger( $r, Apache2::Const::LOG_DEBUG, $message, $user,
+        LOG_TYPE_AUTH, $r->uri );
 
     # Create the expire time for the ticket.
     my $expire_time = _get_expire_time( $c{'DBI_SessionLifetime'} );
@@ -693,10 +715,8 @@ sub authen_cred {
     # If we are using sessions, we create a new session for this login.
     my $session_id = EMPTY_STRING;
     if ( $c{'DBI_sessionmodule'} ne 'none' ) {
-        my $session = $class->_get_new_session(
-            $r, $user, $auth_name, $c{'DBI_sessionmodule'},
-            \@extra_data
-        );
+        my $session = $class->_get_new_session( $r, $user, $auth_name,
+            $c{'DBI_sessionmodule'}, \@extra_data );
         $r->pnotes( $auth_name, $session );
         $session_id = $session->{_session_id};
     }
@@ -713,10 +733,10 @@ sub authen_cred {
     # calculate the hash of *that* and the secret key again.
     my $secretkey = $c{'DBI_SecretKey'};
     if ( !defined $secretkey ) {
-        $r->log_error(
-            "Apache2::AuthCookieDBI: didn't have the secret key for auth realm $auth_name",
-            $r->uri
-        );
+        my $message
+            = "$class: didn't have the secret key for auth realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_ERR, $message, $user,
+            LOG_TYPE_SYSTEM, $r->uri );
         return;
     }
     my $hash = md5_hex( join q{:}, $secretkey,
@@ -746,10 +766,10 @@ sub authen_ses_key {
     # Get the secret key.
     my $secret_key = $c{'DBI_SecretKey'};
     if ( !defined $secret_key ) {
-        $r->log_error(
-            "$class: didn't have the secret key from for auth realm $auth_name",
-            $r->uri
-        );
+        my $message
+            = "$class: didn't have the secret key from for auth realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_ERR, $message, undef,
+            LOG_TYPE_SYSTEM, $r->uri );
         return;
     }
 
@@ -765,10 +785,10 @@ sub authen_ses_key {
     # Let's check that we got passed sensible values in the cookie.
     ($enc_user) = _defined_or_empty($enc_user);
     if ( $enc_user !~ PERCENT_ENCODED_STRING_REGEX ) {
-        $r->log_error(
-            "$class: bad percent-encoded user '$enc_user' recovered from session ticket for auth_realm '$auth_name'",
-            $r->uri
-        );
+        my $message
+            = "$class: bad percent-encoded user '$enc_user' recovered from session ticket for auth_realm '$auth_name'";
+        $class->logger( $r, Apache2::Const::LOG_ERR, $message, undef,
+            LOG_TYPE_SYSTEM, $r->uri );
         return;
     }
 
@@ -777,26 +797,26 @@ sub authen_ses_key {
 
     ($issue_time) = _defined_or_empty($issue_time);
     if ( $issue_time !~ DATE_TIME_STRING_REGEX ) {
-        $r->log_error(
-            "$class: bad issue time '$issue_time' recovered from ticket for user $user for auth_realm $auth_name",
-            $r->uri
-        );
+        my $message
+            = "$class: bad issue time '$issue_time' recovered from ticket for user $user for auth_realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_ERR, $message, $user,
+            LOG_TYPE_SYSTEM, $r->uri );
         return;
     }
 
     ($expire_time) = _defined_or_empty($expire_time);
     if ( $expire_time !~ DATE_TIME_STRING_REGEX ) {
-        $r->log_error(
-            "$class: bad expire time $expire_time recovered from ticket for user $user for auth_realm $auth_name",
-            $r->uri
-        );
+        my $message
+            = "$class: bad expire time $expire_time recovered from ticket for user $user for auth_realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_ERR, $message, $user,
+            LOG_TYPE_SYSTEM, $r->uri );
         return;
     }
     if ( $hashed_string !~ THIRTY_TWO_CHARACTER_HEX_STRING_REGEX ) {
-        $r->log_error(
-            "$class: bad encrypted session_key $hashed_string recovered from ticket for user $user for auth_realm $auth_name",
-            $r->uri
-        );
+        my $message
+            = "$class: bad encrypted session_key $hashed_string recovered from ticket for user $user for auth_realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_ERR, $message, $user,
+            LOG_TYPE_SYSTEM, $r->uri );
         return;
     }
 
@@ -813,10 +833,10 @@ sub authen_ses_key {
                 };
         };
         if ( ( !$tie_result ) || $EVAL_ERROR ) {
-            $r->log_error(
-                "$class: failed to tie session hash to '$c{'DBI_sessionmodule'}' using session id $session_id for user $user for auth_realm $auth_name, error was '$EVAL_ERROR'",
-                $r->uri
-            );
+            my $message
+                = "$class: failed to tie session hash to '$c{'DBI_sessionmodule'}' using session id $session_id for user $user for auth_realm $auth_name, error was '$EVAL_ERROR'";
+            $class->logger( $r, Apache2::Const::LOG_ERR, $message, $user,
+                LOG_TYPE_SYSTEM, $r->uri );
             return;
         }
 
@@ -839,19 +859,19 @@ sub authen_ses_key {
 
     # Compare it to the hash they gave us.
     if ( $new_hash ne $hashed_string ) {
-        $r->log_error(
-            "$class: hash '$hashed_string' in cookie did not match calculated hash '$new_hash' of contents for user $user for auth realm $auth_name",
-            $r->uri
-        );
+        my $message
+            = "$class: hash '$hashed_string' in cookie did not match calculated hash '$new_hash' of contents for user $user for auth realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_ERR, $message, $user,
+            LOG_TYPE_TIMEOUT, $r->uri );
         return;
     }
 
     # Check that their session hasn't timed out.
     if ( _now_year_month_day_hour_minute_second gt $expire_time ) {
-        $r->log_error(
-            "$class: expire time $expire_time has passed for user $user for auth realm $auth_name",
-            $r->uri
-        );
+        my $message
+            = "$class: expire time $expire_time has passed for user $user for auth realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_INFO, $message, $user,
+            LOG_TYPE_TIMEOUT, $r->uri );
         return;
     }
 
@@ -879,20 +899,20 @@ sub decrypt_session_key {
 
     # Check that this looks like an encrypted hex-encoded string.
     if ( $encrypted_session_key !~ HEX_STRING_REGEX ) {
-        $r->log_error(
-            "Apache2::AuthCookieDBI: encrypted session key '$encrypted_session_key' doesn't look like it's properly hex-encoded for auth realm $auth_name",
-            $r->uri
-        );
+        my $message
+            = "$class: encrypted session key '$encrypted_session_key' doesn't look like it's properly hex-encoded for auth realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_ERR, $message, undef,
+            LOG_TYPE_SYSTEM, $r->uri );
         return;
     }
 
     my $cipher = $class->_get_cipher_for_type( $encryptiontype, $auth_name,
         $secret_key );
     if ( !$cipher ) {
-        $r->log_error(
-            "Apache2::AuthCookieDBI: unknown encryption type '$encryptiontype' for auth realm $auth_name",
-            $r->uri
-        );
+        my $message
+            = "$class: unknown encryption type '$encryptiontype' for auth realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_ERR, $message, undef,
+            LOG_TYPE_SYSTEM, $r->uri );
         return;
     }
     $session_key = $cipher->decrypt_hex($encrypted_session_key);
@@ -932,10 +952,10 @@ EOS
     }
     $sth->finish();
 
-    $r->log_error(
-        "$class: user $user was not a member of any of the required groups @groups for auth realm $auth_name",
-        $r->uri
-    );
+    my $message
+        = "$class: user $user was not a member of any of the required groups @groups for auth realm $auth_name";
+    $class->logger( $r, Apache2::Const::LOG_INFO, $message, $user,
+        LOG_TYPE_AUTH, $r->uri );
     return Apache2::Const::HTTP_FORBIDDEN;
 }
 
@@ -989,6 +1009,37 @@ sub _get_expire_time {
         )
     );
     return $expire_time;
+}
+
+sub logger {
+    my ( $class, $r, $log_level, $message, $user, $log_type, @extra_args ) = @_;
+
+    # $log_level should be an Apache constant, e.g. Apache2::Const::LOG_NOTICE
+
+    # Sub-classes should override this method if they want to implent their
+    # own logging strategy.
+    #
+    my @log_args = ( $message, @extra_args );
+
+    my %apache_log_method_for_level = (
+        Apache2::Const::LOG_DEBUG   => 'log_debug',
+        Apache2::Const::LOG_INFO    => 'log_info',
+        Apache2::Const::LOG_NOTICE  => 'log_notice',
+        Apache2::Const::LOG_WARNING => 'log_warn',
+        Apache2::Const::LOG_ERR     => 'log_error',
+        Apache2::Const::LOG_CRIT    => 'log_crit',
+        Apache2::Const::LOG_ALERT   => 'log_alert',
+        Apache2::Const::LOG_EMERG   => 'log_emerg',
+    );
+    my $log_method = $apache_log_method_for_level{$log_level};
+    if ( !$log_method ) {
+        my ( $pkg, $file, $line, $sub ) = caller(1);
+        $r->log_error(
+            "Unknown log_level '$log_level' passed to logger() from $sub at line $line in $file "
+        );
+        $log_method = 'log_error';
+    }
+    $r->$log_method(@log_args);
 }
 
 1;

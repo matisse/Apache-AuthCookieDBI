@@ -25,6 +25,15 @@ sub dir_config {
     return $mock_config->{$name_of_requested_variable};
 }
 
+sub log_info {
+    my ( $self, @args ) = @_;
+    if (@args) {
+        my $message = join( "\t", @args );
+        push @{ $self->{_info_messages} }, $message;
+    }
+    return $self->{_info_messages};
+}
+
 sub log_error {
     my ( $self, @args ) = @_;
     if (@args) {

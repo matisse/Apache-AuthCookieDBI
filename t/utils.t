@@ -10,7 +10,7 @@ use Digest::MD5 qw( md5_hex );    # from mocks
 use Data::Dumper;
 use Mock::Tieable;
 
-use Test::More tests => 55;
+use Test::More tests => 56;
 
 use constant CLASS_UNDER_TEST => 'Apache2::AuthCookieDBI';
 use constant EMPTY_STRING     => q{};
@@ -118,7 +118,8 @@ sub test_authen_ses_key {
     $r = set_up( $auth_name, $mock_config );
     $got_user = CLASS_UNDER_TEST->authen_ses_key( $r, $encrypted_session_key );
     Test::More::ok( !$got_user,
-        'authen_ses_key() returns false on failure to tie session.' );
+        'authen_ses_key() returns false on failure to tie session.' )
+        || Test::More::diag("Expected a false value, got: '$got_user'");
     my $class = CLASS_UNDER_TEST;
     Test::More::like(
         $r->{'_error_messages'}->[0],
@@ -355,10 +356,14 @@ sub test_group {
         Test::More::is( $got_user, $user, "group() checked DB for '$user'" );
     }
     Test::More::like(
-        $r->{'_error_messages'}->[0],
+        $r->{'_info_messages'}->[2], # there are 2 prior messages from _dbi_connect
         qr/user $user was not a member of any of the required groups @groups/,
-        'group() logs expected message for user not in any group.'
-    );
+        'group() logs expected info message for user not in any group.'
+        )
+        || Test::More::diag(
+        'Mock request object contains: ',
+        Data::Dumper::Dumper($r)
+        );
 
     # Test what happens when the user is in a group
     my $group = 'some_group';
@@ -408,22 +413,39 @@ sub test__dbi_connect {
     Test::More::is_deeply( $r->{'_error_messages'},
         [], '_dbi_connect() - no unexpected errors.' );
 
-    my @expected_errors = (
-        qq{connect to test_DBI_DSN for auth realm $auth_name},
+    my $test_dsn = $mock_config->{"${auth_name}DBI_DSN"};
+
+    my @expected_error_messages
+        = ( qq{couldn't connect to $test_dsn for auth realm $auth_name}, );
+
+    my @expected_info_messages = (
         q{_dbi_connect called in main::test__dbi_connect},
+        qq{connect to test_DBI_DSN for auth realm $auth_name},
     );
+
     {
         no warnings qw(once);
         local $DBI::CONNECT_CACHED_FORCE_FAIL = 1;
         CLASS_UNDER_TEST->_dbi_connect($r);
     }
-    my @got_errors   = @{ $r->{'_error_messages'} };
-    my $got_failures = 0;
-    for ( my $i = 0; $i <= $#expected_errors; $i++ ) {
-        my $got            = $got_errors[$i];
-        my $expected_regex = qr/$expected_errors[$i]/;
+
+    my @got_info_messages  = @{ $r->{'_info_messages'} };
+    my @got_error_messages = @{ $r->{'_error_messages'} };
+    my $got_failures       = 0;
+
+    for ( my $i = 0; $i <= $#expected_error_messages; $i++ ) {
+        my $got            = $got_error_messages[$i];
+        my $expected_regex = qr/$expected_error_messages[$i]/;
         Test::More::like( $got, $expected_regex,
-            qq{_dbi_connect() logs error for "$expected_errors[$i]"} )
+            qq{_dbi_connect() logs info for "$expected_error_messages[$i]"} )
+            || $got_failures++;
+    }
+
+    for ( my $i = 0; $i <= $#expected_info_messages; $i++ ) {
+        my $got            = $got_info_messages[$i];
+        my $expected_regex = qr/$expected_info_messages[$i]/;
+        Test::More::like( $got, $expected_regex,
+            qq{_dbi_connect() logs info for "$expected_info_messages[$i]"} )
             || $got_failures++;
     }
 
