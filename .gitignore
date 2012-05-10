@@ -1,0 +1,11 @@
+/.project
+MYMETA.yml
+blib
+*.bak
+Build
+*.gz
+_build
+Makefile.PL
+cover_db
+Makefile
+pm_to_blib
