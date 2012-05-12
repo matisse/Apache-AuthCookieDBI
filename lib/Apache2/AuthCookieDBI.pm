@@ -497,18 +497,17 @@ sub _now_year_month_day_hour_minute_second {
 
 sub _check_password {
     my ( $class, $password, $crypted_password, $crypt_type ) = @_;
-
     return
         if not $crypted_password
     ;    # https://rt.cpan.org/Public/Bug/Display.html?id=62470
 
     my %password_checker = (
-        none => sub { return $password eq $crypted_password; },
+        'none' => sub { return $password eq $crypted_password; },
         'crypt' => sub {
             my $salt = substr $crypted_password, 0, 2;
             return crypt( $password, $salt ) eq $crypted_password;
         },
-        md5 => sub { return md5_hex($password) eq $crypted_password; },
+        'md5' => sub { return md5_hex($password) eq $crypted_password; },
     );
     return $password_checker{$crypt_type}->();
 }
@@ -694,14 +693,14 @@ sub authen_cred {
     if ( !$class->_check_password( $password, $crypted_password, $crypt_type ) )
     {
         my $message
-            = "${class}\t$crypt_type passwords didn't match for user $user for auth realm $auth_name";
+            = "${class}\tcrypt_type: '$crypt_type' - passwords didn't match for user '$user' for auth realm $auth_name";
         $class->logger( $r, Apache2::Const::LOG_NOTICE, $message, $user,
             LOG_TYPE_AUTH, $r->uri );
         return;
     }
 
-    # Sucessful login
-    my $message = "${class}\tSucessful login for $user";
+    # Successful login
+    my $message = "${class}\tSuccessful login for $user";
     $class->logger( $r, Apache2::Const::LOG_DEBUG, $message, $user,
         LOG_TYPE_AUTH, $r->uri );
 

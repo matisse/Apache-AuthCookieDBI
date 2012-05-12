@@ -10,13 +10,14 @@ use Digest::MD5 qw( md5_hex );    # from mocks
 use Data::Dumper;
 use Mock::Tieable;
 
-use Test::More tests => 56;
+use Test::More tests => 59;
 
 use constant CLASS_UNDER_TEST => 'Apache2::AuthCookieDBI';
 use constant EMPTY_STRING     => q{};
 use constant TRUE             => 1;
 
 use_ok(CLASS_UNDER_TEST);
+test_authen_cred();
 test_check_password();
 test_defined_or_empty();
 test_decrypt_session_key();
@@ -55,6 +56,62 @@ sub _mock_config_for_auth_name {
         "${auth_name}DBI_UserActiveField" => EMPTY_STRING,
     );
     return \%mock_config;
+}
+
+sub test_authen_cred {
+    my $auth_name   = 'testing_authen_cred';
+    my $secret_key  = 'test secret key';
+    my $mock_config = {
+        $auth_name . 'DBI_DSN'             => 'test DSN',
+        $auth_name . 'DBI_SecretKey'       => $secret_key,
+        $auth_name . 'DBI_User'            => $auth_name,
+        $auth_name . 'DBI_Password'        => 'test DBI password',
+        $auth_name . 'DBI_UsersTable'      => 'users',
+        $auth_name . 'DBI_UserField'       => 'user',
+        $auth_name . 'DBI_passwordfield'   => 'password',
+        $auth_name . 'DBI_crypttype'       => 'none',
+        $auth_name . 'DBI_groupstable'     => 'groups',
+        $auth_name . 'DBI_groupfield'      => 'grp',
+        $auth_name . 'DBI_groupuserfield'  => 'user',
+        $auth_name . 'DBI_encryptiontype'  => 'none',
+        $auth_name . 'DBI_sessionlifetime' => '00-24-00-00',
+        $auth_name . 'DBI_sessionmodule'   => 'none',
+    };
+    my $r             = set_up( $auth_name, $mock_config );
+    my $empty_user    = EMPTY_STRING;
+    my $test_password = 'test password';
+    my @extra_data    = qw(extra_1 extra_2);
+    my $got_session_key
+        = CLASS_UNDER_TEST->authen_cred( $r, $empty_user, $test_password,
+        @extra_data );
+    Test::More::is( $got_session_key, undef,
+        'authen_cred returns undef when user is an empty string.' );
+
+    my $test_user      = 'username';
+    my $empty_password = EMPTY_STRING;
+    $got_session_key
+        = CLASS_UNDER_TEST->authen_cred( $r, $test_user, $empty_password,
+        @extra_data );
+    Test::More::is( $got_session_key, undef,
+        'authen_cred returns undef when password is an empty string.' );
+
+    $r = set_up( $auth_name, $mock_config );
+    {
+        my $stub_get_crypted_password = sub { return $test_password };
+        no warnings qw(redefine);
+        local *Apache2::AuthCookieDBI::_get_crypted_password
+            = $stub_get_crypted_password;
+        $got_session_key
+            = CLASS_UNDER_TEST->authen_cred( $r, $test_user, $test_password,
+            @extra_data );
+    }
+    Test::More::like(
+        $got_session_key,
+        qr/\A ${test_user}:/x,
+        'authen_cred returns session key starting with username when all OK.'
+        )
+        || Test::More::diag( 'Mock request object contains: ',
+        Data::Dumper::Dumper($r) );
 }
 
 sub test_authen_ses_key {
@@ -358,14 +415,13 @@ sub test_group {
         Test::More::is( $got_user, $user, "group() checked DB for '$user'" );
     }
     Test::More::like(
-        $r->{'_info_messages'}->[2], # there are 2 prior messages from _dbi_connect
+        $r->{'_info_messages'}->[2]
+        ,    # there are 2 prior messages from _dbi_connect
         qr/user $user was not a member of any of the required groups @groups/,
         'group() logs expected info message for user not in any group.'
         )
-        || Test::More::diag(
-        'Mock request object contains: ',
-        Data::Dumper::Dumper($r)
-        );
+        || Test::More::diag( 'Mock request object contains: ',
+        Data::Dumper::Dumper($r) );
 
     # Test what happens when the user is in a group
     my $group = 'some_group';
