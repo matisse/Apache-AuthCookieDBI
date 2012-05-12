@@ -580,7 +580,7 @@ sub _get_crypted_password {
     my $auth_name = $r->auth_name;
 
     if ( !$class->user_is_active( $r, $user ) ) {
-        my $message = "${class}\tUser '$user' is not active for auth realm $auth_name. ";
+        my $message = "${class}\tUser '$user' is not active for auth realm $auth_name.";
         $class->logger( $r, Apache2::Const::LOG_NOTICE, $message, $user,
             LOG_TYPE_AUTH, $r->uri );
         return;
