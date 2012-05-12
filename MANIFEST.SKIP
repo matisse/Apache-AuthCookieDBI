@@ -4,6 +4,7 @@ Makefile
 .project
 blib*
 CVS/*
+.git/*
 ^MYMETA.yml$
 .*.tar.gz$
 _build
