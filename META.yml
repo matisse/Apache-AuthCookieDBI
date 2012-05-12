@@ -5,7 +5,7 @@ build_requires:
   Test::More: 0.4
 configure_requires:
   Module::Build: 0.36
-generated_by: 'Module::Build version 0.3607'
+generated_by: 'Module::Build version 0.3603'
 license: lgpl
 meta-spec:
   url: http://module-build.sourceforge.net/META-spec-v1.4.html
@@ -14,7 +14,7 @@ name: Apache2-AuthCookieDBI
 provides:
   Apache2::AuthCookieDBI:
     file: lib/Apache2/AuthCookieDBI.pm
-    version: 2.14
+    version: 2.15
 requires:
   Apache2::AuthCookie: 3.08
   Apache2::Const: 0
@@ -29,5 +29,4 @@ requires:
   mod_perl2: 1.999022
 resources:
   license: http://opensource.org/licenses/lgpl-license.php
-  repository: git://github.com/matisse/Apache-AuthCookieDBI.git
-version: 2.14
+version: 2.15
