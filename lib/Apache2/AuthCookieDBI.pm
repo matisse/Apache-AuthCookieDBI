@@ -485,6 +485,8 @@ by deleting the user's session.  Authentication will then fail for them.
 This is not required and defaults to none, meaning no session objects will
 be created.
 
+=back
+
 =cut
 
 #-------------------------------------------------------------------------------
@@ -1166,7 +1168,7 @@ Matisse Enzer
         
 =head1 SEE ALSO
 
-Latest version: http://search.cpan.org/perldoc?Apache2%3A%3AAuthCookieDBI
+ Latest version: http://search.cpan.org/dist/Apache2-AuthCookieDBI
 
  Apache2::AuthCookie - http://search.cpan.org/dist/Apache2-AuthCookie
  Apache2::Session    - http://search.cpan.org/dist/Apache2-Session
