@@ -123,7 +123,7 @@ sub test_authen_ses_key {
     my $class = CLASS_UNDER_TEST;
     Test::More::like(
         $r->{'_error_messages'}->[0],
-        qr/${class}: failed to tie session hash/,
+        qr/${class}\tfailed to tie session hash/,
         'authen_ses_key() logs failure to tie session hash.'
     );
     return TRUE;
@@ -315,9 +315,11 @@ sub test_get_crypted_password {
     my $got_errrors = $r->log_error();    # from the mock request object
     Test::More::is( scalar @$got_errrors,
         1, '_get_crypted_password() logs password not found' );
+
+    my $class = CLASS_UNDER_TEST;
     Test::More::like(
         $got_errrors->[0],
-        qr/\ACould not select password/,
+        qr/\A${class}\tCould not select password/,
         '_get_crypted_password() error message for password not found'
     );
 
