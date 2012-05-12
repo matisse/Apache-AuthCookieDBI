@@ -1086,6 +1086,41 @@ that the current remote user is a member of one of them.
 Returns either I<Apache2::Const::HTTP_FORBIDDEN>
 or I<Apache2::Const::OK>.
 
+=head2 logger($r, $log_level, $message, $user, $log_type, @extra_args)
+
+Calls one of the I<Apache::Log> methods with:
+
+  ( $message, @extra_args )
+
+for example, if the I<log_level> is I<Apache2::Const::LOG_DEBUG> then
+this method will call:
+
+  $r->log_debug( $message, @extra_args )
+
+Sub-classes may wish to override this method to perform their own
+logging, for example to log to a database.
+
+I<$log_level> is one of the constants:
+
+ Apache2::Const::LOG_DEBUG
+ Apache2::Const::LOG_INFO
+ Apache2::Const::LOG_NOTICE
+ Apache2::Const::LOG_WARNING
+ Apache2::Const::LOG_ERR
+ Apache2::Const::LOG_CRIT
+ Apache2::Const::LOG_ALERT
+ Apache2::Const::LOG_EMERG
+
+I<$message> is a text string.
+
+I<$user> should be the username, could be undef in some cases.
+
+I<$log_type> is always undef when called in this module, but
+sub-classes may wish to use it when they override this method.
+
+I<@extra_args> are appended to the call to the appropriate
+I<Apache::Log> method. Usually this is simply the value of I<$r-E<gt>uri>.
+
 =head2 user_is_active($r, $user)
 
 If the C<DBI_UserActiveField> is not set then this method
