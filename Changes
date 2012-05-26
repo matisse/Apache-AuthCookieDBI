@@ -1,6 +1,6 @@
 Revision history for Perl extension Apache2::AuthCookieDBI.
 
-2.15 - Not Released yet
+2.15 - Sat May 26 08:32:23 PDT 2012
      - Implemented a logger() method that uses Apache::Log (inspired by https://rt.cpan.org/Ticket/Display.html?id=75675)
      - Address 'Error Message Inconsistency' https://rt.cpan.org/Ticket/Display.html?id=75725
      - Address ' If user is not active, it produces 2 errors'  https://rt.cpan.org/Ticket/Display.html?id=75724

@@ -9,8 +9,9 @@ checksummed and expire-time checked.
 Version 2.03 and later: mod_perl 1.999_22 and later. Apache::*
 replaced by Apache2::
 
-Latest version at: http://search.cpan.org/dist/Apache2-AuthCookieDBI
-
+Latest distribution at: http://search.cpan.org/dist/Apache2-AuthCookieDBI
+Source code at:         https://github.com/matisse/Apache-AuthCookieDBI/
+ 
 Apache::AuthCookieDBI versions:
 Version 2.0 and later: mod_perl 1.99_XX
 Version 1.22 was the last version that works with mod_perl 1.x

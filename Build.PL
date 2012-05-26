@@ -5,7 +5,6 @@ use warnings;
 use Module::Build;
 
 my $build = Module::Build->new(
-    author      => 'Matisse Enzer <matisse@cpan.org>',
     module_name => 'Apache2::AuthCookieDBI',
     license     => 'lgpl',
     requires    => {
@@ -28,6 +27,24 @@ my $build = Module::Build->new(
             MANIFEST.bak
             ),
     ],
+    meta_merge => {
+        'author' => [ 'Matisse Enzer <matisse@cpan.org>', ],
+        'release_status' => 'stable',
+        'resources'      => {
+            'license'    => ['http://opensource.org/licenses/lgpl-license.php'],
+            'homepage'   => 'http://search.cpan.org/dist/Apache2-AuthCookieDBI',
+            'bugtracker' => {
+                'web' =>
+                    'https://rt.cpan.org/Public/Dist/Display.html?Name=Apache2-AuthCookieDBI',
+            },
+            'repository' => {
+                'url'  => 'git://github.com/matisse/Apache-AuthCookieDBI.git',
+                'web'  => 'https://github.com/matisse/Apache-AuthCookieDBI',
+                'type' => 'git',
+            },
+        },
+    },
+
 );
 
 $build->create_build_script();
