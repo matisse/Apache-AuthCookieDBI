@@ -556,8 +556,8 @@ sub _dbi_connect {
     my $dbh = DBI->connect_cached( $c{'DBI_DSN'}, $c{'DBI_User'},
         $c{'DBI_Password'} );
     if ( defined $dbh ) {
-        my $info_message = "${class}\tconnect to $c{'DBI_DSN'} for auth realm $auth_name"
-            ;
+        my $info_message
+            = "${class}\tconnect to $c{'DBI_DSN'} for auth realm $auth_name";
         $class->logger( $r, Apache2::Const::LOG_INFO, $info_message, undef,
             LOG_TYPE_SYSTEM, $r->uri );
         return $dbh;
@@ -581,7 +581,8 @@ sub _get_crypted_password {
     my $auth_name = $r->auth_name;
 
     if ( !$class->user_is_active( $r, $user ) ) {
-        my $message = "${class}\tUser '$user' is not active for auth realm $auth_name.";
+        my $message
+            = "${class}\tUser '$user' is not active for auth realm $auth_name.";
         $class->logger( $r, Apache2::Const::LOG_NOTICE, $message, $user,
             LOG_TYPE_AUTH, $r->uri );
         return;
@@ -602,7 +603,8 @@ SQL
     $sth->finish();
 
     if ( _is_empty($crypted_password) ) {
-        my $message = "${class}\tCould not select password using SQL query '$sql_query'";
+        my $message
+            = "${class}\tCould not select password using SQL query '$sql_query'";
         $class->logger( $r, Apache2::Const::LOG_ERR, $message, $user,
             LOG_TYPE_AUTH, $r->uri );
         return;
@@ -671,14 +673,16 @@ sub authen_cred {
     ( $user, $password ) = _defined_or_empty( $user, $password );
 
     if ( !length $user ) {
-        my $message = "${class}\tno username supplied for auth realm $auth_name";
+        my $message
+            = "${class}\tno username supplied for auth realm $auth_name";
         $class->logger( $r, Apache2::Const::LOG_NOTICE, $message, $user,
             LOG_TYPE_AUTH, $r->uri );
         return;
     }
 
     if ( !length $password ) {
-        my $message = "${class}\tno password supplied for auth realm $auth_name";
+        my $message
+            = "${class}\tno password supplied for auth realm $auth_name";
         $class->logger( $r, Apache2::Const::LOG_NOTICE, $message, $user,
             LOG_TYPE_AUTH, $r->uri );
         return;
@@ -1023,14 +1027,14 @@ sub logger {
     my @log_args = ( $message, @extra_args );
 
     my %apache_log_method_for_level = (
-        Apache2::Const::LOG_DEBUG   => 'log_debug',
-        Apache2::Const::LOG_INFO    => 'log_info',
-        Apache2::Const::LOG_NOTICE  => 'log_notice',
-        Apache2::Const::LOG_WARNING => 'log_warn',
-        Apache2::Const::LOG_ERR     => 'log_error',
-        Apache2::Const::LOG_CRIT    => 'log_crit',
-        Apache2::Const::LOG_ALERT   => 'log_alert',
-        Apache2::Const::LOG_EMERG   => 'log_emerg',
+        Apache2::Const::LOG_DEBUG   => 'debug',
+        Apache2::Const::LOG_INFO    => 'info',
+        Apache2::Const::LOG_NOTICE  => 'notice',
+        Apache2::Const::LOG_WARNING => 'warn',
+        Apache2::Const::LOG_ERR     => 'error',
+        Apache2::Const::LOG_CRIT    => 'crit',
+        Apache2::Const::LOG_ALERT   => 'alert',
+        Apache2::Const::LOG_EMERG   => 'emerg',
     );
     my $log_method = $apache_log_method_for_level{$log_level};
     if ( !$log_method ) {
@@ -1040,7 +1044,7 @@ sub logger {
         );
         $log_method = 'log_error';
     }
-    $r->$log_method(@log_args);
+    $r->log->$log_method(@log_args);
 }
 
 1;
@@ -1095,7 +1099,7 @@ Calls one of the I<Apache::Log> methods with:
 for example, if the I<log_level> is I<Apache2::Const::LOG_DEBUG> then
 this method will call:
 
-  $r->log_debug( $message, @extra_args )
+  $r->log->debug( $message, @extra_args )
 
 Sub-classes may wish to override this method to perform their own
 logging, for example to log to a database.

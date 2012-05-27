@@ -146,10 +146,10 @@ sub test_authen_ses_key {
 
     CLASS_UNDER_TEST->authen_ses_key( $r, $encrypted_session_key );
     like(
-        $r->log_error->[-1],
+        $r->log->error->[-1],
         qr/ bad \s encrypted \s session_key /xm,
         'authen_ses_key() on bad encrypted key'
-    );
+    ) || Test::More::diag( '$r contains: ', Data::Dumper::Dumper($r) );
 
     $r = set_up( $auth_name, $mock_config );
 
@@ -167,9 +167,10 @@ sub test_authen_ses_key {
     $encrypted_session_key = join( q{:}, $public_part, $hashed_string );
 
     my $got_user
-        = CLASS_UNDER_TEST->authen_ses_key( $r, $encrypted_session_key );
+        = CLASS_UNDER_TEST->authen_ses_key( $r, $encrypted_session_key )
+        ;
     is( $got_user, $expected_user, 'authen_ses_key() on plaintext key' )
-        || diag join( "\n", @{ $r->log_error() } );
+        || diag join( "\n", @{ $r->log->error() } );
 
     $mock_config->{ $auth_name . 'DBI_sessionmodule' } = 'Missing::Class';
     $r = set_up( $auth_name, $mock_config );
@@ -179,7 +180,7 @@ sub test_authen_ses_key {
         || Test::More::diag("Expected a false value, got: '$got_user'");
     my $class = CLASS_UNDER_TEST;
     Test::More::like(
-        $r->{'_error_messages'}->[0],
+        $r->log->error->[0],
         qr/${class}\tfailed to tie session hash/,
         'authen_ses_key() logs failure to tie session hash.'
     );
@@ -235,7 +236,7 @@ sub test_decrypt_session_key {
             $encrypted_key, $secret_key );
         Test::More::ok( defined $decrypted_key,
             "Got decrypted key for '$encryption_type'" )
-            || Test::More::diag( join "\n", @{ $r->log_error() } );
+            || Test::More::diag( join "\n", @{ $r->log->error() } );
         $r->{'_error_messages'} = [];
 
     }
@@ -369,7 +370,7 @@ sub test_get_crypted_password {
     }
     Test::More::ok( !$got_password,
         '_get_crypted_password() with password not found' );
-    my $got_errrors = $r->log_error();    # from the mock request object
+    my $got_errrors = $r->log->error();    # from the mock request object
     Test::More::is( scalar @$got_errrors,
         1, '_get_crypted_password() logs password not found' );
 
@@ -415,8 +416,7 @@ sub test_group {
         Test::More::is( $got_user, $user, "group() checked DB for '$user'" );
     }
     Test::More::like(
-        $r->{'_info_messages'}->[2]
-        ,    # there are 2 prior messages from _dbi_connect
+        $r->log->info->[2],    # there are 2 prior messages from _dbi_connect
         qr/user $user was not a member of any of the required groups @groups/,
         'group() logs expected info message for user not in any group.'
         )
@@ -468,8 +468,8 @@ sub test__dbi_connect {
         || Test::More::diag( 'Sensor object contains: ',
         Data::Dumper::Dumper($mock_dbh) );
 
-    Test::More::is_deeply( $r->{'_error_messages'},
-        [], '_dbi_connect() - no unexpected errors.' );
+    Test::More::is_deeply( $r->log->error(), [],
+        '_dbi_connect() - no unexpected errors.' );
 
     my $test_dsn = $mock_config->{"${auth_name}DBI_DSN"};
 
@@ -487,8 +487,8 @@ sub test__dbi_connect {
         CLASS_UNDER_TEST->_dbi_connect($r);
     }
 
-    my @got_info_messages  = @{ $r->{'_info_messages'} };
-    my @got_error_messages = @{ $r->{'_error_messages'} };
+    my @got_info_messages  = @{ $r->log->info };
+    my @got_error_messages = @{ $r->log->error };
     my $got_failures       = 0;
 
     for ( my $i = 0; $i <= $#expected_error_messages; $i++ ) {

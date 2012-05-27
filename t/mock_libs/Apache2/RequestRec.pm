@@ -2,6 +2,8 @@ package Apache2::RequestRec;
 use strict;
 use warnings;
 
+use Apache2::Log::Request;
+
 our $AUTOLOAD;
 
 # Mock library for testing only.
@@ -11,6 +13,7 @@ sub new {
     my $self = \%args;
     bless $self, $class;
     $self->{_error_messages} = [];
+    $self->{'_log'} = Apache2::Log::Request->new();
     return $self;
 }
 
@@ -25,22 +28,9 @@ sub dir_config {
     return $mock_config->{$name_of_requested_variable};
 }
 
-sub log_info {
-    my ( $self, @args ) = @_;
-    if (@args) {
-        my $message = join( "\t", @args );
-        push @{ $self->{_info_messages} }, $message;
-    }
-    return $self->{_info_messages};
-}
-
-sub log_error {
-    my ( $self, @args ) = @_;
-    if (@args) {
-        my $message = join( "\t", @args );
-        push @{ $self->{_error_messages} }, $message;
-    }
-    return $self->{_error_messages};
+sub log {
+    my ($self) = @_;
+    return $self->{'_log'};
 }
 
 sub uri {
@@ -68,12 +58,12 @@ sub subprocess_env {
 # then we push a ref to the args:  [1,2,3] onto the arrayref at $r->{'unknown'}
 #
 sub AUTOLOAD {
-    my ($self, @args) = @_;
+    my ( $self, @args ) = @_;
     my $called_name = $AUTOLOAD;
-    if ( ! exists $self->{$called_name} ) {
+    if ( !exists $self->{$called_name} ) {
         $self->{$called_name} = [];
     }
-    push @{$self->{$called_name}}, \@args;
+    push @{ $self->{$called_name} }, \@args;
     return $self;
 }
 

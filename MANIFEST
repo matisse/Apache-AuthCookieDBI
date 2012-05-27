@@ -15,6 +15,7 @@ t/basic.t
 t/mock_libs/Apache/DBI.pm
 t/mock_libs/Apache2/AuthCookie.pm
 t/mock_libs/Apache2/Const.pm
+t/mock_libs/Apache2/Log/Request.pm
 t/mock_libs/Apache2/RequestRec.pm
 t/mock_libs/Apache2/ServerUtil.pm
 t/mock_libs/Crypt/CBC.pm
