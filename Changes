@@ -1,5 +1,8 @@
 Revision history for Perl extension Apache2::AuthCookieDBI.
 
+2.16 - Sun May 27 00:23:41 PDT 2012
+     - Fix 'wrong method names in calls to apache request logging' for https://rt.cpan.org/Ticket/Display.html?id=77464
+
 2.15 - Sat May 26 08:32:23 PDT 2012
      - Implemented a logger() method that uses Apache::Log (inspired by https://rt.cpan.org/Ticket/Display.html?id=75675)
      - Address 'Error Message Inconsistency' https://rt.cpan.org/Ticket/Display.html?id=75725
