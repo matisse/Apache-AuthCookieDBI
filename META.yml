@@ -9,13 +9,13 @@ configure_requires:
 generated_by: 'Module::Build version 0.3603'
 license: lgpl
 meta-spec:
-  url: http://module-build.sourceforge.net/META-spec-v1.4.html
-  version: 1.4
+  url: http://search.cpan.org/perldoc?CPAN::Meta::Spec
+  version: 2
 name: Apache2-AuthCookieDBI
 provides:
   Apache2::AuthCookieDBI:
     file: lib/Apache2/AuthCookieDBI.pm
-    version: 2.16
+    version: v2.16.1
 release_status: stable
 requires:
   Apache2::AuthCookie: 3.08
@@ -39,4 +39,4 @@ resources:
     type: git
     url: git://github.com/matisse/Apache-AuthCookieDBI.git
     web: https://github.com/matisse/Apache-AuthCookieDBI
-version: 2.16
+version: v2.16.1

@@ -1,4 +1,3 @@
-# $Id: Build.PL,v 1.6 2010/12/18 18:41:52 matisse Exp $
 use strict;
 use warnings;
 
@@ -28,7 +27,12 @@ my $build = Module::Build->new(
             ),
     ],
     meta_merge => {
-        'author' => [ 'Matisse Enzer <matisse@cpan.org>', ],
+        'author'    => [ 'Matisse Enzer <matisse@cpan.org>', ],
+        'meta-spec' => {
+            'version' => 2,
+            'url' =>
+                'http://search.cpan.org/perldoc?CPAN::Meta::Spec',
+        },
         'release_status' => 'stable',
         'resources'      => {
             'license'    => ['http://opensource.org/licenses/lgpl-license.php'],
