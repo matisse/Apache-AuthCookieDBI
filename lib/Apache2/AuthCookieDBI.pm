@@ -610,11 +610,11 @@ sub _get_crypted_password {
     my $crypted_password = EMPTY_STRING;
 
     my $sql_query = <<"SQL";
-      SELECT $c{'DBI_PasswordField'}
-      FROM $c{'DBI_UsersTable'}
-      WHERE $c{'DBI_UserField'} = ?
-      AND ($c{'DBI_PasswordField'} != ''
-      AND $c{'DBI_PasswordField'} IS NOT NULL)
+      SELECT `$c{'DBI_PasswordField'}`
+      FROM `$c{'DBI_UsersTable'}`
+      WHERE `$c{'DBI_UserField'}` = ?
+      AND (`$c{'DBI_PasswordField'}` != ''
+      AND `$c{'DBI_PasswordField'}` IS NOT NULL)
 SQL
     my $sth = $dbh->prepare_cached($sql_query);
     $sth->execute($user);
@@ -959,10 +959,10 @@ sub group {
 
     # Now loop through all the groups to see if we're a member of any:
     my $sth = $dbh->prepare_cached( <<"EOS" );
-SELECT $c{'DBI_GroupUserField'}
-FROM $c{'DBI_GroupsTable'}
-WHERE $c{'DBI_GroupField'} = ?
-AND $c{'DBI_GroupUserField'} = ?
+SELECT `$c{'DBI_GroupUserField'}`
+FROM `$c{'DBI_GroupsTable'}`
+WHERE `$c{'DBI_GroupField'}` = ?
+AND `$c{'DBI_GroupUserField'}` = ?
 EOS
     foreach my $group (@groups) {
         $sth->execute( $group, $user );
@@ -994,9 +994,9 @@ sub user_is_active {
 
     my $dbh = $class->_dbi_connect($r) || return;
     my $sql_query = <<"SQL";
-      SELECT $active_field_name
-      FROM $c{'DBI_UsersTable'}
-      WHERE $c{'DBI_UserField'} = ?
+      SELECT `$active_field_name`
+      FROM `$c{'DBI_UsersTable'}`
+      WHERE `$c{'DBI_UserField'}` = ?
 SQL
 
     my $sth = $dbh->prepare_cached($sql_query);

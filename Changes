@@ -2,7 +2,13 @@ Revision history for Perl extension Apache2::AuthCookieDBI.
 
 2.17
      - Added support for Digest::SHA::sha256_hex digests for passwords.
-       https://rt.cpan.org/Ticket/Display.html?id=79333
+       This is a response to https://rt.cpan.org/Ticket/Display.html?id=79333
+       which requested sha256_base64 but because base64 digests are not properly
+       padded I chose to go with sha256_hex instead.
+
+     - Quote all database column and field names in SQL queries.
+       https://rt.cpan.org/Ticket/Display.html?id=79341
+       Table column names may confict with sql key words
 
 2.16 - Sun May 27 00:23:41 PDT 2012
      - Fix 'wrong method names in calls to apache request logging' for https://rt.cpan.org/Ticket/Display.html?id=77464
