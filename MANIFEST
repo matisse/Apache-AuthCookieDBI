@@ -25,3 +25,4 @@ t/mock_libs/Mock/Tieable.pm
 t/utils.t
 techspec.txt
 Makefile.PL
+META.json

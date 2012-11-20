@@ -32,8 +32,8 @@ package Apache2::AuthCookieDBI;
 
 use strict;
 use warnings;
-use 5.004;
-our $VERSION = '2.16.1';
+use 5.010_000;
+our $VERSION = '2.17';
 
 use Apache2::AuthCookie;
 use base qw( Apache2::AuthCookie );
@@ -336,6 +336,11 @@ sub _dbi_config_vars {
         require Crypt::CBC;
     }
 
+    # Compile module for password encryption, if needed.
+    if ( $c{'DBI_CryptType'} =~ 'sha256') {
+        require Digest::SHA;
+    }
+
     return %c;
 }
 
@@ -426,7 +431,12 @@ overidden in a subclass.)
 =item C<WhatEverDBI_CryptType>
 
 What kind of hashing is used on the password field in the database.  This can
-be 'none', 'crypt', or 'md5'.  This is not required and defaults to 'none'.
+be 'none', 'crypt', 'md5', or 'sha256'.
+
+C<md5> will use Digest::MD5::md5hex() and C<sha256> will use
+Digest::SHA::sha256_hex().
+
+This is not required and defaults to 'none'.
 
 =item C<WhatEverDBI_GroupsTable>
 
@@ -501,17 +511,26 @@ sub _check_password {
     my ( $class, $password, $crypted_password, $crypt_type ) = @_;
     return
         if not $crypted_password
-    ;    # https://rt.cpan.org/Public/Bug/Display.html?id=62470
+        ;    # https://rt.cpan.org/Public/Bug/Display.html?id=62470
 
     my %password_checker = (
         'none' => sub { return $password eq $crypted_password; },
         'crypt' => sub {
-            my $salt = substr $crypted_password, 0, 2;
-            return crypt( $password, $salt ) eq $crypted_password;
+            $class->_crypt_digest( $password, $crypted_password ) eq
+                $crypted_password;
         },
         'md5' => sub { return md5_hex($password) eq $crypted_password; },
+        'sha256' => sub {
+            return Digest::SHA::sha256_hex($password) eq $crypted_password;
+        },
     );
     return $password_checker{$crypt_type}->();
+}
+
+sub _crypt_digest {
+    my ( $class, $plaintext, $encrypted ) = @_;
+    my $salt = substr $encrypted, 0, 2;
+    return crypt $plaintext, $salt;
 }
 
 #-------------------------------------------------------------------------------
@@ -1141,7 +1160,8 @@ according to the following rules:  the user field must be a UNIQUE KEY
 so there is only one row per user; the password field must be NOT NULL.  If
 you're using MD5 passwords the password field must be 32 characters long to
 allow enough space for the output of md5_hex().  If you're using crypt()
-passwords you need to allow 13 characters.
+passwords you need to allow 13 characters. If you're using sha256_hex()
+then you need to allow for 64 characters.
 
 An minimal CREATE TABLE statement might look like:
 

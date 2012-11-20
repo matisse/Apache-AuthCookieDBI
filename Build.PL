@@ -19,34 +19,22 @@ my $build = Module::Build->new(
         'Digest::MD5'         => 0,
         'FindBin'             => 0,
     },
-    build_requires     => { 'Test::More' => 0.4, },
+    recommends => {
+        'Digest::SHA' => 5.47,  # If you use DBI_CryptType sha256
+    },
+    build_requires     => { 
+        'Test::More' => 0.4, 
+        'Digest::SHA' => 5.47,
+    },
     create_makefile_pl => 'traditional',
     add_to_cleanup     => [
         qw( *.tar.gz
             MANIFEST.bak
             ),
     ],
-    meta_merge => {
-        'author'    => [ 'Matisse Enzer <matisse@cpan.org>', ],
-        'meta-spec' => {
-            'version' => 2,
-            'url' =>
-                'http://search.cpan.org/perldoc?CPAN::Meta::Spec',
-        },
-        'release_status' => 'stable',
-        'resources'      => {
-            'license'    => ['http://opensource.org/licenses/lgpl-license.php'],
-            'homepage'   => 'http://search.cpan.org/dist/Apache2-AuthCookieDBI',
-            'bugtracker' => {
-                'web' =>
-                    'https://rt.cpan.org/Public/Dist/Display.html?Name=Apache2-AuthCookieDBI',
-            },
-            'repository' => {
-                'url'  => 'git://github.com/matisse/Apache-AuthCookieDBI.git',
-                'web'  => 'https://github.com/matisse/Apache-AuthCookieDBI',
-                'type' => 'git',
-            },
-        },
+    meta_merge     => {
+        resources =>
+            { repository => 'https://github.com/matisse/Apache-AuthCookieDBI', },
     },
 
 );

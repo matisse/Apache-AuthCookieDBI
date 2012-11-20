@@ -7,10 +7,11 @@ use Apache2::RequestRec;    # from mocks
 use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN );
 use Crypt::CBC;                   # from mocks
 use Digest::MD5 qw( md5_hex );    # from mocks
+use Digest::SHA;
 use Data::Dumper;
 use Mock::Tieable;
 
-use Test::More tests => 59;
+use Test::More tests => 67;
 
 use constant CLASS_UNDER_TEST => 'Apache2::AuthCookieDBI';
 use constant EMPTY_STRING     => q{};
@@ -188,10 +189,98 @@ sub test_authen_ses_key {
 }
 
 sub test_check_password {
+    test_check_password_digest_none();
+    test_check_password_digest_crypt();
+    test_check_password_digest_md5();
+    test_check_password_digest_sha256();
+    return TRUE;
+}
+
+sub test_check_password_digest_none {
+    my $plaintext_password = 'plaintext password';
+
     Test::More::ok(
-        !CLASS_UNDER_TEST->_check_password( 'foo', undef, 'bar' ),
-        '_check_password() return false when password is undef'
+        !CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, undef, 'any'
+        ),
+        '_check_password() return false when encrypted password is undef'
     );
+    Test::More::ok(
+        CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, $plaintext_password, 'none'
+        ),
+        '_check_password() success case with no encryption'
+    );
+
+    Test::More::ok(
+        !CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, 'no match', 'none'
+        ),
+        '_check_password() failure case with no encryption'
+    );
+
+    return TRUE;
+}
+
+sub test_check_password_digest_crypt {
+    my $plaintext_password = 'plaintext password';
+    my $crypt_encrypted
+        = CLASS_UNDER_TEST->_crypt_digest( $plaintext_password,
+        $plaintext_password );
+    Test::More::ok(
+        CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, $crypt_encrypted, 'crypt'
+        ),
+        '_check_password() success case with crypt digest'
+    );
+
+    Test::More::ok(
+        !CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, 'no match', 'crypt'
+        ),
+        '_check_password() failure case with crypt digest'
+    );
+
+    return TRUE;
+}
+
+sub test_check_password_digest_md5 {
+    my $plaintext_password = 'plaintext password';
+    my $md5_encrypted      = Digest::MD5::md5_hex($plaintext_password);
+    Test::More::ok(
+        CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, $md5_encrypted, 'md5'
+        ),
+        '_check_password() success case with md5 encryption'
+    );
+
+    Test::More::ok(
+        !CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, 'no match', 'md5'
+        ),
+        '_check_password() failure case with md5 encryption'
+    );
+
+    return TRUE;
+}
+
+sub test_check_password_digest_sha256 {
+    my $plaintext_password   = 'plaintext password';
+    my $sha256_hex_encrypted = Digest::SHA::sha256_hex($plaintext_password);
+    Test::More::ok(
+        CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, $sha256_hex_encrypted, 'sha256'
+        ),
+        '_check_password() success case with sha256 encryption'
+    );
+
+    Test::More::ok(
+        !CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, 'no match', 'sha256'
+        ),
+        '_check_password() failure case with sha256 encryption'
+    );
+
     return TRUE;
 }
 
