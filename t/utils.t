@@ -11,7 +11,7 @@ use Digest::SHA;
 use Data::Dumper;
 use Mock::Tieable;
 
-use Test::More tests => 67;
+use Test::More tests => 71;
 
 use constant CLASS_UNDER_TEST => 'Apache2::AuthCookieDBI';
 use constant EMPTY_STRING     => q{};
@@ -193,6 +193,8 @@ sub test_check_password {
     test_check_password_digest_crypt();
     test_check_password_digest_md5();
     test_check_password_digest_sha256();
+     test_check_password_digest_sha384();
+      test_check_password_digest_sha512();
     return TRUE;
 }
 
@@ -279,6 +281,46 @@ sub test_check_password_digest_sha256 {
             $plaintext_password, 'no match', 'sha256'
         ),
         '_check_password() failure case with sha256 encryption'
+    );
+
+    return TRUE;
+}
+
+sub test_check_password_digest_sha384 {
+    my $plaintext_password   = 'plaintext password';
+    my $sha384_hex_encrypted = Digest::SHA::sha384_hex($plaintext_password);
+    Test::More::ok(
+        CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, $sha384_hex_encrypted, 'sha384'
+        ),
+        '_check_password() success case with sha384 encryption'
+    );
+
+    Test::More::ok(
+        !CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, 'no match', 'sha384'
+        ),
+        '_check_password() failure case with sha384 encryption'
+    );
+
+    return TRUE;
+}
+
+sub test_check_password_digest_sha512 {
+    my $plaintext_password   = 'plaintext password';
+    my $sha512_hex_encrypted = Digest::SHA::sha512_hex($plaintext_password);
+    Test::More::ok(
+        CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, $sha512_hex_encrypted, 'sha512'
+        ),
+        '_check_password() success case with sha512 encryption'
+    );
+
+    Test::More::ok(
+        !CLASS_UNDER_TEST->_check_password(
+            $plaintext_password, 'no match', 'sha512'
+        ),
+        '_check_password() failure case with sha512 encryption'
     );
 
     return TRUE;

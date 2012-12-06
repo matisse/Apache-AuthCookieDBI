@@ -337,7 +337,7 @@ sub _dbi_config_vars {
     }
 
     # Compile module for password encryption, if needed.
-    if ( $c{'DBI_CryptType'} =~ 'sha256') {
+    if ( $c{'DBI_CryptType'} =~ '^sha') {
         require Digest::SHA;
     }
 
@@ -431,10 +431,10 @@ overidden in a subclass.)
 =item C<WhatEverDBI_CryptType>
 
 What kind of hashing is used on the password field in the database.  This can
-be 'none', 'crypt', 'md5', or 'sha256'.
+be 'none', 'crypt', 'md5', 'sha256', 'sha384', or 'sha512'.
 
-C<md5> will use Digest::MD5::md5hex() and C<sha256> will use
-Digest::SHA::sha256_hex().
+C<md5> will use Digest::MD5::md5hex() and C<sha...> will use
+Digest::SHA::sha{n}_hex().
 
 This is not required and defaults to 'none'.
 
@@ -522,6 +522,12 @@ sub _check_password {
         'md5' => sub { return md5_hex($password) eq $crypted_password; },
         'sha256' => sub {
             return Digest::SHA::sha256_hex($password) eq $crypted_password;
+        },
+        'sha384' => sub {
+            return Digest::SHA::sha384_hex($password) eq $crypted_password;
+        },
+        'sha512' => sub {
+            return Digest::SHA::sha512_hex($password) eq $crypted_password;
         },
     );
     return $password_checker{$crypt_type}->();
@@ -1161,7 +1167,8 @@ so there is only one row per user; the password field must be NOT NULL.  If
 you're using MD5 passwords the password field must be 32 characters long to
 allow enough space for the output of md5_hex().  If you're using crypt()
 passwords you need to allow 13 characters. If you're using sha256_hex()
-then you need to allow for 64 characters.
+then you need to allow for 64 characters, for sha384_hex() allow 96 characters,
+and for sha512_hex() allow 128.
 
 An minimal CREATE TABLE statement might look like:
 
