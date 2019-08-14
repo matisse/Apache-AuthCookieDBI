@@ -375,10 +375,10 @@ root and include it.
 This is required and has no default value.
 (NOTE: In AuthCookieDBI versions 1.22 and earlier the secret key either could be
 set in the configuration file itself
-or it could be place in a seperate file with the path configured with
+or it could be placed in a separate file with the path configured with
 C<PerlSetVar WhateverDBI_SecretKeyFile>.
 
-As of version 2.0 you must use  C<WhateverDBI_SecretKey> and not
+As of version 2.0, you must use C<WhateverDBI_SecretKey> and not
 C<PerlSetVar WhateverDBI_SecretKeyFile>.
 
 If you want to put the secret key in a separate file then you can create a
@@ -516,8 +516,7 @@ sub _check_password {
     my %password_checker = (
         'none' => sub { return $password eq $crypted_password; },
         'crypt' => sub {
-            $class->_crypt_digest( $password, $crypted_password ) eq
-                $crypted_password;
+            crypt( $password, $crypted_password ) eq $crypted_password;
         },
         'md5' => sub { return md5_hex($password) eq $crypted_password; },
         'sha256' => sub {
@@ -531,12 +530,6 @@ sub _check_password {
         },
     );
     return $password_checker{$crypt_type}->();
-}
-
-sub _crypt_digest {
-    my ( $class, $plaintext, $encrypted ) = @_;
-    my $salt = substr $encrypted, 0, 2;
-    return crypt $plaintext, $salt;
 }
 
 #-------------------------------------------------------------------------------
