@@ -516,7 +516,7 @@ sub _check_password {
     my %password_checker = (
         'none' => sub { return $password eq $crypted_password; },
         'crypt' => sub {
-            crypt( $password, $crypted_password ) eq $crypted_password;
+            return crypt( $password, $crypted_password ) eq $crypted_password;
         },
         'md5' => sub { return md5_hex($password) eq $crypted_password; },
         'sha256' => sub {
