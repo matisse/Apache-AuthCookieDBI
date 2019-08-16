@@ -240,7 +240,7 @@ sub test_check_password_digest_crypt {
         !CLASS_UNDER_TEST->_check_password(
             $plaintext_password, 'no match', 'crypt'
         ),
-        '_check_password() failure case with crypt digest'
+        '_check_password() failure case with crypt'
     );
 
     return TRUE;
