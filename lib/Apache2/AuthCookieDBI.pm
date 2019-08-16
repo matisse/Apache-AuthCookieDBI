@@ -337,7 +337,7 @@ sub _dbi_config_vars {
     }
 
     # Compile module for password encryption, if needed.
-    if ( $c{'DBI_CryptType'} =~ '^sha') {
+    if ( $c{'DBI_CryptType'} =~ /^sha/ ) {
         require Digest::SHA;
     }
 
@@ -372,10 +372,9 @@ random string.  This should be secret; either make the httpd.conf file
 only readable by root, or put the PerlSetVar in a file only readable by
 root and include it.
 
-This is required and has no default value.
-(NOTE: In AuthCookieDBI versions 1.22 and earlier the secret key either could be
-set in the configuration file itself
-or it could be placed in a separate file with the path configured with
+This is required and has no default value.  (NOTE: In AuthCookieDBI versions
+1.22 and earlier the secret key either could be set in the configuration file
+itself or it could be placed in a separate file with the path configured with
 C<PerlSetVar WhateverDBI_SecretKeyFile>.
 
 As of version 2.0, you must use C<WhateverDBI_SecretKey> and not
