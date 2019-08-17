@@ -33,7 +33,7 @@ package Apache2::AuthCookieDBI;
 use strict;
 use warnings;
 use 5.010_000;
-our $VERSION = '2.17';
+our $VERSION = '2.18';
 
 use Apache2::AuthCookie;
 use base qw( Apache2::AuthCookie );
