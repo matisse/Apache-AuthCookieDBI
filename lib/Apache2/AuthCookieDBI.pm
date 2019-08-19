@@ -580,7 +580,6 @@ sub _dbi_connect {
         return $dbh;
     }
     else {
-
         my $error_message
             = "${class}\tcouldn't connect to $c{'DBI_DSN'} for auth realm $auth_name";
         $class->logger( $r, Apache2::Const::LOG_ERR, $error_message,
