@@ -52,7 +52,7 @@ Revision history for Perl extension Apache2::AuthCookieDBI.
        - Fixed https://rt.cpan.org/Ticket/Display.html?id=45207
          Hash keys for configuration values were wrong in several places.
        - Improved test coverage a little.
-       
+
 2.04 - Fri Nov 28 15:41:33 PST 2008
        Incorporated bug fix for authen_ses_key() provided by
        Carl Gustafsson. authen_ses_key() was not properly handling
@@ -74,7 +74,7 @@ Revision history for Perl extension Apache2::AuthCookieDBI.
        Incorporated Lance P Cleveland's changes porting module to mod_perl 1.999_22
        (That is, Version 2.0.0-RC5 - April 14, 2005)
        Mainly involves changing almost all references to Apache:: to Apache2::
-       
+
        Also some minor documentation changes.
 
 2.02 - Tue Apr 12 17:58:40 PDT 2005
@@ -87,5 +87,5 @@ Revision history for Perl extension Apache2::AuthCookieDBI.
 2.0  - mod_perl 2 version
 
 0.01 - Mon Apr  3 10:50:32 2000
-	- original version; created by h2xs 1.19
+       - original version; created by h2xs 1.19
 
