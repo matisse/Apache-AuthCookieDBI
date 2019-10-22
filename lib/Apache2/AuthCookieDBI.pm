@@ -33,7 +33,7 @@ package Apache2::AuthCookieDBI;
 use strict;
 use warnings;
 use 5.010_000;
-our $VERSION = '2.18';
+our $VERSION = '2.19';
 
 use Apache2::AuthCookie;
 use base qw( Apache2::AuthCookie );
@@ -83,15 +83,11 @@ use constant LOG_TYPE_TIMEOUT => 'timeout';
 
 Apache2::AuthCookieDBI - An AuthCookie module backed by a DBI database.
 
-=head1 VERSION
-
-    This is version 2.14
-
 =head1 COMPATIBILITY
 
-Starting with version 2.03 the module is in the Apache2::* namespace,
-L<Apache2::AuthCookieDBI>.  For F<mod_perl1> versions
-there is: L<Apache::AuthCookieDBI>
+Starting with version 2.03, this module is in the Apache2::* namespace,
+L<Apache2::AuthCookieDBI>.  For F<mod_perl 1.x> versions,
+there is still L<Apache::AuthCookieDBI>.
 
 =head1 SYNOPSIS
 
@@ -1195,9 +1191,9 @@ A minimal CREATE TABLE statement might look like:
 
 =head1 COPYRIGHT
 
- Copyright (C) 2002 SF Interactive.
+ Copyright (C) 2002 SF Interactive
  Copyright (C) 2003-2004 Jacob Davies
- Copyright (C) 2004-2010 Matisse Enzer
+ Copyright (C) 2004-2019 Matisse Enzer
 
 =head1 LICENSE
 
@@ -1221,6 +1217,7 @@ Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
   Incomplete list of additional contributors (alphabetical by first name):
     Carl Gustafsson
     Chad Columbus
+    Edward J Sabol
     Jay Strauss
     Joe Ingersoll
     Keith Lawson
