@@ -33,6 +33,7 @@ package Apache2_4::AuthCookieDBI;
 # ABSTRACT: Perl group authorization for Apache 2.4.x
 
 use strict;
+use warnings;
 use base 'Apache2::AuthCookieDBI';
 use Apache2::Log;
 use Apache2::Const -compile => qw(AUTHZ_GRANTED AUTHZ_DENIED AUTHZ_DENIED_NO_USER AUTHZ_GENERAL_ERROR);
@@ -43,7 +44,6 @@ use Apache::AuthCookie::Util qw(is_blank);
 #===============================================================================
 
 our $VERSION = '2.19';
-use constant LOG_TYPE_AUTHZ   => 'authorization';
 
 #===============================================================================
 # M E T H O D ( S )
@@ -68,17 +68,17 @@ sub group {
         return Apache2::Const::AUTHZ_DENIED;
     }
 
-    my @groups = split( Apache2::AuthCookieDBI::WHITESPACE_REGEX, $groups );
+    my @groups = split( $class->WHITESPACE_REGEX, $groups );
 
     # Instead of querying the database every time, check subprocess_env
     # for AUTH_COOKIE_DBI_GROUP (set below) and utilize that to short circuit
     # the authorization.
     if ( my $cached_group = $r->subprocess_env('AUTH_COOKIE_DBI_GROUP') ) {
-	$r->server->log_error("${class}\tfound cached group $cached_group") if ($debug >= 3);
-	foreach my $group (@groups) {
-	    if ($group eq $cached_group) {
-		return Apache2::Const::AUTHZ_GRANTED;
-	    }
+        $r->server->log_error("${class}\tfound cached group $cached_group") if ($debug >= 3);
+        foreach my $group (@groups) {
+            if ($group eq $cached_group) {
+                return Apache2::Const::AUTHZ_GRANTED;
+            }
         }
     }
 
@@ -88,43 +88,14 @@ sub group {
     my %c = $class->_dbi_config_vars($r);
 
     # See if we have a row in the groups table for this user/group.
-    my $dbh = $class->_dbi_connect($r) || return Apache2::Const::AUTHZ_GENERAL_ERROR;
+    my $dbh = $class->_dbi_connect($r, \%c)
+      || return Apache2::Const::AUTHZ_GENERAL_ERROR;
+    my $sth = $class->_prepare_group_query($r, $dbh, \%c)
+      || return Apache2::Const::AUTHZ_GENERAL_ERROR;
 
-    # Now loop through all the groups to see if we're a member of any:
-    my $DBI_GroupUserField = $dbh->quote_identifier($c{'DBI_GroupUserField'});
-    my $DBI_GroupsTable = $dbh->quote_identifier($c{'DBI_GroupsTable'});
-    my $DBI_GroupField = $dbh->quote_identifier($c{'DBI_GroupField'});
-
-    my $sth = $dbh->prepare_cached( <<"EOS" );
-SELECT $DBI_GroupUserField
-FROM $DBI_GroupsTable
-WHERE $DBI_GroupField = ?
-AND $DBI_GroupUserField = ?
-EOS
-    foreach my $group (@groups) {
-	$r->server->log_error("${class}\tchecking if user $user is a member of group $group by querying $DBI_GroupsTable") if ($debug >= 4);
-        $sth->execute( $group, $user );
-        if ( $sth->fetchrow_array ) { # query successful; user is in group
-            $sth->finish();
-
-	    $r->server->log_error("${class}\tauthorized -- user $user is a member of group $group") if ($debug >= 4);
-
-            # add the group to an ENV var that CGI programs can access:
-            $r->subprocess_env( 'AUTH_COOKIE_DBI_GROUP' => $group );
-
-            return Apache2::Const::AUTHZ_GRANTED;
-        }
-    }
-    $sth->finish();
-
-    # Log a message similar to mod_authz_user.
-    my $auth_name = $r->auth_name;
-    my $message
-        = "${class}\tuser $user was not a member of any of the required groups @{[ join('/',@groups) ]} for auth realm $auth_name";
-    $class->logger( $r, Apache2::Const::LOG_INFO, $message, $user,
-        LOG_TYPE_AUTHZ, $r->uri );
-
-    return Apache2::Const::AUTHZ_DENIED;
+    return $class->_check_group_membership($r, $sth, \@groups, $debug)
+      ? Apache2::Const::AUTHZ_GRANTED
+      : Apache2::Const::AUTHZ_DENIED;
 }
 
 1;
@@ -137,14 +108,15 @@ __END__
 
 =head1 NAME
 
-Apache2_4::AuthCookieDBI - A module implementing Apache 2.4.x compatibility
-for L<Apache2::AuthCookieDBI> group-based authorizations.
+Apache2_4::AuthCookieDBI - A subclass of L<Apache2::AuthCookieDBI>
+that implements a "group" authorization provider for Apache 2.4.x.
 
 =head1 SYNOPSIS
 
  # In httpd.conf or .htaccess:
  #   Configure as you would with Apache2::AuthCookieDBI, but leave out
- #   the PerlAuthzHandler directive and add the following when using "require group":
+ #   the PerlAuthzHandler directive and add the following when using
+ #   "require group":
 
  PerlModule Apache2_4::AuthCookieDBI
  PerlAddAuthzProvider group Apache2_4::AuthCookieDBI->group
@@ -155,11 +127,16 @@ for L<Apache2::AuthCookieDBI> group-based authorizations.
 
 =head1 DESCRIPTION
 
-This module is for F<mod_perl> version 2 and Apache version 2.4.x.  If you
-are running Apache 2.0.0-2.2.x, refer to L<Apache2::AuthCookieDBI>.
+B<Apache2_4::AuthCookieDBI> provides an Apache 2.4.x-compatible
+authorization provider for handling "group" authorization
+requirements.
 
-B<Apache2_4::AuthCookieDBI> provides an Apache 2.4.x-compatible authorization
-provider for handling "group" requirements.
+This module is a subclass of L<Apache2::AuthCookieDBI>. All the
+methods for Apache2::AuthCookieDBI still work for this module as well.
+The only method that this class overrides is C<group>.
+
+This module is for F<mod_perl> version 2 and Apache version 2.4.x. If
+you are running Apache 2.0.0-2.2.x, refer toL<Apache2::AuthCookieDBI>.
 
 Make sure your F<mod_perl> is at least 2.0.9, with StackedHandlers,
 MethodHandlers, Authen, and Authz compiled in.
@@ -168,8 +145,8 @@ MethodHandlers, Authen, and Authz compiled in.
 
 The implementation herein is based on L<Apache2::AuthCookieDBI>'s C<group>
 method with heavy inspiration from the sample C<authz_handler> in
-L<Apache2_4::AuthCookie> by Michael Schout. Huge thanks to Michael Schout for
-his documentation on the changes to authorization under Apache 2.4.x.
+L<Apache2_4::AuthCookie> by Michael Schout. Huge thanks to Michael Schout
+for his documentation on the changes to authorization under Apache 2.4.x.
 
 =head1 COPYRIGHT
 

@@ -72,6 +72,7 @@ use constant THIRTY_TWO_CHARACTER_HEX_STRING_REGEX =>
 use constant TRUE             => 1;
 use constant WHITESPACE_REGEX => qr/ \s+ /mx;
 use constant LOG_TYPE_AUTH    => 'authentication';
+use constant LOG_TYPE_AUTHZ   => 'authorization';
 use constant LOG_TYPE_SYSTEM  => 'system';
 use constant LOG_TYPE_TIMEOUT => 'timeout';
 
@@ -99,7 +100,6 @@ there is still L<Apache::AuthCookieDBI>.
     # before all other modules using DBI - just uncomment the next line:
     #PerlModule Apache::DBI  
    
-     
     PerlModule Apache2::AuthCookieDBI
     PerlSetVar WhatEverPath /
     PerlSetVar WhatEverLoginScript /login.pl
@@ -553,7 +553,7 @@ sub _percent_decode {
 # _dbi_connect -- Get a database handle.
 
 sub _dbi_connect {
-    my ( $class, $r ) = @_;
+    my ( $class, $r, $config_hash ) = @_;
     Carp::confess('Failed to pass Apache request object') if not $r;
 
     my ( $pkg, $file, $line, $sub ) = caller(1);
@@ -561,7 +561,7 @@ sub _dbi_connect {
     $class->logger( $r, Apache2::Const::LOG_INFO, $info_message, undef,
         LOG_TYPE_SYSTEM, $r->uri );
 
-    my %c = $class->_dbi_config_vars($r);
+    my %c = $config_hash ? %$config_hash : $class->_dbi_config_vars($r);
 
     my $auth_name = $r->auth_name;
 
@@ -585,14 +585,15 @@ sub _dbi_connect {
 }
 
 #-------------------------------------------------------------------------------
-# _get_crypted_password -- Get the users' password from the database
-sub _get_crypted_password {
-    my ( $class, $r, $user ) = @_;
-    my $dbh       = $class->_dbi_connect($r) || return;
-    my %c         = $class->_dbi_config_vars($r);
+# _get_crypted_password -- Get the users' password from the database.
+
+  sub _get_crypted_password {
+    my ( $class, $r, $user, $config_hash ) = @_;
+    my %c         = $config_hash ? %$config_hash : $class->_dbi_config_vars($r);
+    my $dbh       = $class->_dbi_connect($r, \%c) || return;
     my $auth_name = $r->auth_name;
 
-    if ( !$class->user_is_active( $r, $user ) ) {
+    if ( !$class->user_is_active( $r, $user, \%c ) ) {
         my $message
             = "${class}\tUser '$user' is not active for auth realm $auth_name.";
         $class->logger( $r, Apache2::Const::LOG_NOTICE, $message, $user,
@@ -628,6 +629,66 @@ SQL
     return $crypted_password;
 }
 
+#-------------------------------------------------------------------------------
+# _prepare_group_query -- Prepare the database query used to determine whether
+# the authenticated user is a member of a group.
+
+sub _prepare_group_query {
+    my ( $class, $r, $dbh, $config_hash ) = @_;
+
+    # Get the configuration information.
+    my %c = $config_hash ? %$config_hash : $class->_dbi_config_vars($r);
+    my $DBI_GroupUserField = $dbh->quote_identifier($c{'DBI_GroupUserField'});
+    my $DBI_GroupsTable = $dbh->quote_identifier($c{'DBI_GroupsTable'});
+    my $DBI_GroupField = $dbh->quote_identifier($c{'DBI_GroupField'});
+
+    my $sth = $dbh->prepare_cached( <<"EOS" );
+SELECT $DBI_GroupUserField
+FROM $DBI_GroupsTable
+WHERE $DBI_GroupField = ?
+AND $DBI_GroupUserField = ?
+EOS
+
+    return $sth;
+}
+
+#-------------------------------------------------------------------------------
+# _check_group_membership -- Query the database to see if the authenticated
+# user is a member of the specified group(s).
+
+sub _check_group_membership {
+    my ( $class, $r, $sth, $groups_ref, $debug ) = @_;
+
+    if ( !defined $debug ) {
+        $debug = $r->dir_config("AuthCookieDebug") || 0;
+    }
+    my $user = $r->user;
+
+    # Loop through all the groups to see if we are a member of any:
+    foreach my $group (@$groups_ref) {
+        $r->server->log_error("${class}\tchecking if user $user is a member of group $group") if ($debug >= 4);
+        $sth->execute( $group, $user );
+        if ( $sth->fetchrow_array ) { # query successful; user is in group
+            $sth->finish();
+            $r->server->log_error("${class}\tauthorized -- user $user is a member of group $group") if ($debug >= 4);
+            # add the group to an ENV var that CGI programs can access:
+            $r->subprocess_env( 'AUTH_COOKIE_DBI_GROUP' => $group );
+            return $group;
+        }
+    }
+    $sth->finish();
+
+    # Log a message similar to mod_authz_user.
+    my $auth_name = $r->auth_name;
+    my $message
+        = "${class}\tuser $user was not a member of any of the required groups @{[ join('/',@$groups_ref) ]} for auth realm $auth_name";
+    $class->logger( $r, Apache2::Const::LOG_INFO, $message, $user,
+        LOG_TYPE_AUTHZ, $r->uri );
+
+    return;
+}
+
+#-------------------------------------------------------------------------------
 sub _get_new_session {
     my $class          = shift;
     my $r              = shift;
@@ -649,9 +710,11 @@ sub _get_new_session {
     return \%session;
 }
 
+#-------------------------------------------------------------------------------
 # Takes a list and returns a list of the same size.
 # Any element in the inputs that is defined is returned unchanged. Elements that
 # were undef are returned as empty strings.
+
 sub _defined_or_empty {
     my @args        = @_;
     my @all_defined = ();
@@ -944,56 +1007,30 @@ sub group {
     my ( $class, $r, $groups ) = @_;
     my @groups = split( WHITESPACE_REGEX, $groups );
 
-    my $auth_name = $r->auth_name;
-
     # Get the configuration information.
     my %c = $class->_dbi_config_vars($r);
 
-    my $user = $r->user;
-
     # See if we have a row in the groups table for this user/group.
-    my $dbh = $class->_dbi_connect($r) || return Apache2::Const::SERVER_ERROR;
+    my $dbh = $class->_dbi_connect($r, \%c)
+      || return Apache2::Const::SERVER_ERROR;
+    my $sth = $class->_prepare_group_query($r, $dbh, \%c)
+      || return Apache2::Const::SERVER_ERROR;
 
-    # Now loop through all the groups to see if we're a member of any:
-    my $DBI_GroupUserField = $dbh->quote_identifier($c{'DBI_GroupUserField'});
-    my $DBI_GroupsTable = $dbh->quote_identifier($c{'DBI_GroupsTable'});
-    my $DBI_GroupField = $dbh->quote_identifier($c{'DBI_GroupField'});
-
-    my $sth = $dbh->prepare_cached( <<"EOS" );
-SELECT $DBI_GroupUserField
-FROM $DBI_GroupsTable
-WHERE $DBI_GroupField = ?
-AND $DBI_GroupUserField = ?
-EOS
-    foreach my $group (@groups) {
-        $sth->execute( $group, $user );
-        if ( $sth->fetchrow_array ) {
-            $sth->finish();
-
-            # add the group to an ENV var that CGI programs can access:
-            $r->subprocess_env( 'AUTH_COOKIE_DBI_GROUP' => $group );
-            return Apache2::Const::OK;
-        }
-    }
-    $sth->finish();
-
-    my $message
-        = "${class}\tuser $user was not a member of any of the required groups @groups for auth realm $auth_name";
-    $class->logger( $r, Apache2::Const::LOG_INFO, $message, $user,
-        LOG_TYPE_AUTH, $r->uri );
-    return Apache2::Const::HTTP_FORBIDDEN;
+    return $class->_check_group_membership($r, $sth, \@groups, $debug)
+      ? Apache2::Const::OK
+      : Apache2::Const::HTTP_FORBIDDEN;
 }
 
 sub user_is_active {
-    my ( $class, $r, $user ) = @_;
-    my %c                 = $class->_dbi_config_vars($r);
+    my ( $class, $r, $user, $config_hash ) = @_;
+    my %c = $config_hash ? %$config_hash : $class->_dbi_config_vars($r);
     my $active_field_name = $c{'DBI_UserActiveField'};
 
     if ( !$active_field_name ) {
         return TRUE;    # Default is that users are active
     }
 
-    my $dbh = $class->_dbi_connect($r) || return;
+    my $dbh = $class->_dbi_connect($r, \%c) || return;
     my $ActiveFieldName = $dbh->quote_identifier($active_field_name);
     my $DBI_UsersTable = $dbh->quote_identifier($c{'DBI_UsersTable'});
     my $DBI_UserField  = $dbh->quote_identifier($c{'DBI_UserField'});
