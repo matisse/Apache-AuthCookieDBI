@@ -660,7 +660,7 @@ sub _check_group_membership {
     my ( $class, $r, $sth, $groups_ref, $debug ) = @_;
 
     if ( !defined $debug ) {
-        $debug = $r->dir_config("AuthCookieDebug") || 0;
+        $debug = $r->dir_config('AuthCookieDebug') || 0;
     }
     my $user = $r->user;
 

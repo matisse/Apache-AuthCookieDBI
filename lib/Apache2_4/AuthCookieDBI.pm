@@ -52,7 +52,7 @@ our $VERSION = '2.19';
 sub group {
     my ($class, $r, $groups) = @_;
 
-    my $debug = $r->dir_config("AuthCookieDebug") || 0;
+    my $debug = $r->dir_config('AuthCookieDebug') || 0;
 
     my $user = $r->user;
 
@@ -136,7 +136,7 @@ methods for Apache2::AuthCookieDBI still work for this module as well.
 The only method that this class overrides is C<group>.
 
 This module is for F<mod_perl> version 2 and Apache version 2.4.x. If
-you are running Apache 2.0.0-2.2.x, refer toL<Apache2::AuthCookieDBI>.
+you are running Apache 2.0.0-2.2.x, refer to L<Apache2::AuthCookieDBI>.
 
 Make sure your F<mod_perl> is at least 2.0.9, with StackedHandlers,
 MethodHandlers, Authen, and Authz compiled in.
