@@ -634,10 +634,10 @@ SQL
 # the authenticated user is a member of a group.
 
 sub _prepare_group_query {
-    my ( $class, $r, $dbh, $config_hash ) = @_;
+    my ( $class, $dbh, $config_hash ) = @_;
 
     # Get the configuration information.
-    my %c = $config_hash ? %$config_hash : $class->_dbi_config_vars($r);
+    my %c = %$config_hash;
     my $DBI_GroupUserField = $dbh->quote_identifier($c{'DBI_GroupUserField'});
     my $DBI_GroupsTable = $dbh->quote_identifier($c{'DBI_GroupsTable'});
     my $DBI_GroupField = $dbh->quote_identifier($c{'DBI_GroupField'});
@@ -1013,7 +1013,7 @@ sub group {
     # See if we have a row in the groups table for this user/group.
     my $dbh = $class->_dbi_connect($r, \%c)
       || return Apache2::Const::SERVER_ERROR;
-    my $sth = $class->_prepare_group_query($r, $dbh, \%c)
+    my $sth = $class->_prepare_group_query($dbh, \%c)
       || return Apache2::Const::SERVER_ERROR;
 
     return $class->_check_group_membership($r, $sth, \@groups, $debug)

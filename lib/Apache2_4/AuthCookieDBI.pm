@@ -64,7 +64,10 @@ sub group {
     }
 
     if (is_blank($groups)) {
-        $r->server->log_error("${class}\tno group(s) specified in \'Require group ...\' configuration for URI @{[ $r->uri ]}");
+        my $message
+            = "${class}\tno group(s) specified in the \'Require group ...\' configuration for URI @{[ $r->uri ]}");
+        $class->logger( $r, Apache2::Const::LOG_INFO, $message, $user,
+            LOG_TYPE_AUTHZ, $r->uri );
         return Apache2::Const::AUTHZ_DENIED;
     }
 
@@ -90,7 +93,7 @@ sub group {
     # See if we have a row in the groups table for this user/group.
     my $dbh = $class->_dbi_connect($r, \%c)
       || return Apache2::Const::AUTHZ_GENERAL_ERROR;
-    my $sth = $class->_prepare_group_query($r, $dbh, \%c)
+    my $sth = $class->_prepare_group_query($dbh, \%c)
       || return Apache2::Const::AUTHZ_GENERAL_ERROR;
 
     return $class->_check_group_membership($r, $sth, \@groups, $debug)
