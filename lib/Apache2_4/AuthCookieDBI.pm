@@ -37,7 +37,6 @@ use warnings;
 use base 'Apache2::AuthCookieDBI';
 use Apache2::Log;
 use Apache2::Const -compile => qw(AUTHZ_GRANTED AUTHZ_DENIED AUTHZ_DENIED_NO_USER AUTHZ_GENERAL_ERROR);
-use Apache::AuthCookie::Util qw(is_blank);
 
 #===============================================================================
 # FILE (LEXICAL)  G L O B A L S
@@ -53,17 +52,16 @@ sub group {
     my ($class, $r, $groups) = @_;
 
     my $debug = $r->dir_config('AuthCookieDebug') || 0;
-
     my $user = $r->user;
 
     $r->server->log_error("authz:start user=@{[ defined($user) ? $user : '(undef)' ]} type=$class groups=@{[ defined($groups) ? $groups : '(undef)' ]} uri=@{[ $r->uri ]}") if ($debug >= 5);
 
-    if (is_blank($user)) {
+    if ( _is_empty($user) ) {
         # User is not yet authenticated.
         return Apache2::Const::AUTHZ_DENIED_NO_USER;
     }
 
-    if (is_blank($groups)) {
+    if ( _is_empty($groups) ) {
         my $message
             = "${class}\tno group(s) specified in the \'Require group ...\' configuration for URI @{[ $r->uri ]}";
         $class->logger( $r, Apache2::Const::LOG_INFO, $message, $user,
@@ -79,7 +77,7 @@ sub group {
     if ( my $cached_group = $r->subprocess_env('AUTH_COOKIE_DBI_GROUP') ) {
         $r->server->log_error("${class}\tfound cached group $cached_group") if ($debug >= 3);
         foreach my $group (@groups) {
-            if ($group eq $cached_group) {
+            if ( $group eq $cached_group ) {
                 return Apache2::Const::AUTHZ_GRANTED;
             }
         }
