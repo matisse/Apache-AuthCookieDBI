@@ -615,6 +615,12 @@ sub _dbi_connect {
       AND $PasswordField IS NOT NULL)
 SQL
     my $sth = $dbh->prepare_cached($sql_query);
+    unless ( defined $sth ) {
+        my $message = "${class}\tcouldn\'t prepare statement handle to $c{'DBI_DSN'} for auth realm $auth_name";
+        $class->logger( $r, Apache2::Const::LOG_ERR, $message, $user,
+                        LOG_TYPE_AUTH, $r->uri );
+        return;
+    }
     $sth->execute($user);
     ($crypted_password) = $sth->fetchrow_array();
     $sth->finish();
@@ -772,6 +778,7 @@ sub authen_cred {
 
     # get the crypted password from the users database for this user.
     my $crypted_password = $class->_get_crypted_password( $r, $user, \%c );
+    return unless ( defined $crypted_password );
 
     # now return unless the passwords match.
     my $crypt_type = lc $c{'DBI_CryptType'};
@@ -1016,7 +1023,7 @@ sub group {
     my $sth = $class->_prepare_group_query($dbh, \%c)
       || return Apache2::Const::SERVER_ERROR;
 
-    return $class->_check_group_membership($r, $sth, \@groups, $debug)
+    return $class->_check_group_membership($r, $sth, \@groups)
       ? Apache2::Const::OK
       : Apache2::Const::HTTP_FORBIDDEN;
 }

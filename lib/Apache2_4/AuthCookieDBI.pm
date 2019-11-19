@@ -65,9 +65,9 @@ sub group {
 
     if (is_blank($groups)) {
         my $message
-            = "${class}\tno group(s) specified in the \'Require group ...\' configuration for URI @{[ $r->uri ]}");
+            = "${class}\tno group(s) specified in the \'Require group ...\' configuration for URI @{[ $r->uri ]}";
         $class->logger( $r, Apache2::Const::LOG_INFO, $message, $user,
-            LOG_TYPE_AUTHZ, $r->uri );
+            $class->LOG_TYPE_AUTHZ, $r->uri );
         return Apache2::Const::AUTHZ_DENIED;
     }
 
