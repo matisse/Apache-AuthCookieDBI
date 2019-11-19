@@ -687,7 +687,7 @@ sub _check_group_membership {
     # Log a message similar to mod_authz_user.
     my $auth_name = $r->auth_name;
     my $message
-        = "${class}\tuser $user was not a member of any of the required groups @{[ join('/',@$groups_ref) ]} for auth realm $auth_name";
+        = "${class}\tuser $user was not a member of any of the required groups @$groups_ref for auth realm $auth_name";
     $class->logger( $r, Apache2::Const::LOG_INFO, $message, $user,
         LOG_TYPE_AUTHZ, $r->uri );
 
