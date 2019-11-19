@@ -35,6 +35,7 @@ use warnings;
 use base 'Apache2::AuthCookieDBI';
 use Apache2::Log;
 use Apache2::Const -compile => qw(AUTHZ_GRANTED AUTHZ_DENIED AUTHZ_DENIED_NO_USER AUTHZ_GENERAL_ERROR);
+use Apache::AuthCookie::Util qw(is_blank);
 
 #===============================================================================
 # FILE (LEXICAL)  G L O B A L S
@@ -54,12 +55,12 @@ sub group {
 
     $r->server->log_error("authz:start user=@{[ defined($user) ? $user : '(undef)' ]} type=$class groups=@{[ defined($groups) ? $groups : '(undef)' ]} uri=@{[ $r->uri ]}") if ($debug >= 5);
 
-    if ( _is_empty($user) ) {
+    if ( is_blank($user) ) {
         # User is not yet authenticated.
         return Apache2::Const::AUTHZ_DENIED_NO_USER;
     }
 
-    if ( _is_empty($groups) ) {
+    if ( is_blank($groups) ) {
         my $message
             = "${class}\tno group(s) specified in the \'Require group ...\' configuration for URI @{[ $r->uri ]}";
         $class->logger( $r, Apache2::Const::LOG_INFO, $message, $user,
