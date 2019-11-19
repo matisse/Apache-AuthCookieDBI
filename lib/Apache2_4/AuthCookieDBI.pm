@@ -1,7 +1,5 @@
 #===============================================================================
 #
-# $Id$
-#
 # Apache2_4::AuthCookieDBI
 #
 # A module implementing Apache 2.4.x compatibility for Apache2::AuthCookieDBI

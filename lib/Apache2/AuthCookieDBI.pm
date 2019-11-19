@@ -1,7 +1,5 @@
 #===============================================================================
 #
-# $Id: AuthCookieDBI.pm,v 1.60 2011/03/12 20:14:41 matisse Exp $
-#
 # Apache2::AuthCookieDBI
 #
 # An AuthCookie module backed by a DBI database.
