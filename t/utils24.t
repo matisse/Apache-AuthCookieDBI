@@ -4,7 +4,7 @@ use English qw(-no_match_vars);
 use FindBin qw($Bin);
 use lib "$Bin/mock_libs";
 use Apache2::RequestRec;    # from mocks
-use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN AUTHZ_GRANTED AUTHZ_DENIED AUTHZ_DENIED_NO_USER AUTHZ_GENERAL_ERROR);
+use Apache2::Const -compile => qw( AUTHZ_GRANTED AUTHZ_DENIED AUTHZ_DENIED_NO_USER AUTHZ_GENERAL_ERROR);
 use Crypt::CBC;                   # from mocks
 use Digest::MD5 qw( md5_hex );    # from mocks
 use Digest::SHA;
