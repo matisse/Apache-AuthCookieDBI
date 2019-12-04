@@ -4,16 +4,16 @@ use English qw(-no_match_vars);
 use FindBin qw($Bin);
 use lib "$Bin/mock_libs";
 use Apache2::RequestRec;    # from mocks
-use Apache2::Const -compile => qw( OK HTTP_FORBIDDEN );
+use Apache2::Const -compile => qw( AUTHZ_GRANTED AUTHZ_DENIED AUTHZ_DENIED_NO_USER AUTHZ_GENERAL_ERROR);
 use Crypt::CBC;                   # from mocks
 use Digest::MD5 qw( md5_hex );    # from mocks
 use Digest::SHA;
 use Data::Dumper;
 use Mock::Tieable;
 
-use Test::More tests => 71;
+use Test::More tests => 72;
 
-use constant CLASS_UNDER_TEST => 'Apache2::AuthCookieDBI';
+use constant CLASS_UNDER_TEST => 'Apache2_4::AuthCookieDBI';
 use constant EMPTY_STRING     => q{};
 use constant TRUE             => 1;
 
@@ -531,12 +531,27 @@ sub test_group {
             my ( $sth, @args ) = @_;
             push @database_queries, \@args;
         };
+        local $r->{'user'} = undef;
         $got_result = CLASS_UNDER_TEST->group( $r, "@groups" );
     }
     Test::More::is(
         $got_result,
-        Apache2::Const::HTTP_FORBIDDEN,
-        'group() returns FORBIDDEN when user not in any group.'
+        Apache2::Const::AUTHZ_DENIED_NO_USER,
+        'group() returns AUTHZ_DENIED_NO_USER when user is not set.'
+    );
+
+    {
+        no warnings qw(once redefine);
+        local *DBI::Mock::sth::execute = sub {
+            my ( $sth, @args ) = @_;
+            push @database_queries, \@args;
+        };
+        $got_result = CLASS_UNDER_TEST->group( $r, "@groups" );
+    }
+    Test::More::is(
+        $got_result,
+        Apache2::Const::AUTHZ_DENIED,
+        'group() returns AUTHZ_DENIED when user not in any group.'
     );
 
     for ( my $i = 0; $i < scalar @groups; $i++ ) {
@@ -561,23 +576,24 @@ sub test_group {
         local *DBI::Mock::sth::fetchrow_array = sub { return TRUE };
         $got_result = CLASS_UNDER_TEST->group( $r, $group );
     }
-    Test::More::is( $got_result, Apache2::Const::OK,
-        'group() returns OK if user is in a group.' );
+    Test::More::is( $got_result, Apache2::Const::AUTHZ_GRANTED,
+        'group() returns AUTHZ_GRANTED if user is in a group.' );
 
     Test::More::is_deeply(
         $r->{'subprocess_env'},
         { AUTH_COOKIE_DBI_GROUP => $group },
-        'group() sets AUTH_COOKIE_DBI_GROUP when OK.'
+        'group() sets AUTH_COOKIE_DBI_GROUP when AUTHZ_GRANTED.'
     );
 
     # test failure to connect to database
     {
         no warnings qw(once redefine);
         local *DBI::connect_cached = sub {return};
+        local $r->{'subprocess_env'} = {};
         $got_result = CLASS_UNDER_TEST->group( $r, $group );
     }
-    Test::More::is( $got_result, Apache2::Const::SERVER_ERROR,
-        'group() returns SERVER_ERROR on DB connect failure.' );
+    Test::More::is( $got_result, Apache2::Const::AUTHZ_GENERAL_ERROR,
+        'group() returns AUTHZ_GENERAL_ERROR on DB connect failure.' );
     return TRUE;
 }
 
