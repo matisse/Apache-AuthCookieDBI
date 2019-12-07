@@ -27,7 +27,7 @@ RUN cpan App::cpanminus && \
     rm -rf /tmp/* /root/.cpan /root/.cpanm && \
     mkdir /var/tmp/Apache-AuthCookieDBI
 
-COPY Apache-AuthCookieDBI/ /var/tmp/Apache-AuthCookieDBI
+COPY ./ /var/tmp/Apache-AuthCookieDBI
 
 RUN cd /var/tmp/Apache-AuthCookieDBI/ && \
     perl Build.PL && \
