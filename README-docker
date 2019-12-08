@@ -2,10 +2,10 @@ Assuming you have installed the base Docker software on your machine
 you can run the tests for this distribution without installing
 Apache or mod_perl on your local machine.
 
-Docker allows you to run an entirely different OS as a process
-on your local machine.
+Docker allows you to run an entirely different OS as a process on
+your local machine. See: https://docs.docker.com
 
-See: https://docs.docker.com
+See also: "TESTING DIFFERENT VERSIONS OF Perl/mod_perl" below.
 
 The docker/ directory in this distribution contains:
 
@@ -32,4 +32,29 @@ commands it will take a while for Docker to create the image
 mod_perl so it can take many minutes.) Assuming you don't delete
 the Docker images then subsequent runs will be much faster.
 
-See also the Dockerfile reference: https://docs.docker.com/engine/reference/builder/
+See also the Dockerfile reference:
+https://docs.docker.com/engine/reference/builder/
+
+TESTING DIFFERENT VERSIONS OF Perl/mod_perl
+
+`httpd-2.2/Dockerfile`
+
+The `httpd-2.2/Dockerfile` uses the official Apache Docker image
+for version 2.2.34 and then builds Perl and mod_perl from source.
+
+IMPORTANT: This means you can adapt this Dockerfile to build and
+test with alternative versions of Perl and mod_perl.
+
+`httpd-2.4/Dockerfile`
+
+The `httpd-2.4/Dockerfile` uses the versions of httpd, mod_perl,
+and Perl provided by Ubuntu linux. It does this by using `apt-get`
+to install the vendor packages for apache2 and libapache2-mod-perl2.
+
+This means that building the initial Docker image from this Dockerfile
+takes about 1/7 the time that the `httpd-2.2/Dockerfile` takes to
+build from source but it also means that you cannot use this
+Dockerfile to test alternative versions of httpd, mod_perl, or Perl.
+If you want to do that start with the `httpd-2.2/Dockerfile` and
+modify it.
+
