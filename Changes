@@ -1,6 +1,6 @@
 Revision history for Perl extension Apache2::AuthCookieDBI.
 
-2.19 - {{TBD}}
+2.19 - Sun Dec  8 15:06:12 PST 2019
      - Added support for group authorizations on Apache 2.4.x. This addresses
        https://github.com/matisse/Apache-AuthCookieDBI/issues/2 and
        https://rt.cpan.org/Public/Bug/Display.html?id=106663.
